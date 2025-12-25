@@ -5,7 +5,7 @@
     "build": "npm run build:ts",
     "build:ts": "lerna run build",
     "start:example": "echo \"Run 'npm run start:example:client' and 'npm run start:example:server' in separate terminals\"",
-    "start:example:client": "cd examples/web-login && npm run start:client",
+    "start:example:client": "cd examples/web-login && npm start",
     "start:example:server": "cd examples/web-login && npm run start:server"
   },
   "devDependencies": {

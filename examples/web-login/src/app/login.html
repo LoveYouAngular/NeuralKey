@@ -1,0 +1,13 @@
+<div class="login-container">
+  <h2>Neural Key Login</h2>
+  <p>{{ status }}</p>
+
+  <button *ngIf="!isLoggedIn" (click)="performLogin()" [disabled]="!neuralClient">
+    Login with Neural Key
+  </button>
+
+  <div *ngIf="isLoggedIn" class="success-message">
+    <p>Welcome! You are logged in.</p>
+    <!-- Further application content or navigation could go here -->
+  </div>
+</div>
