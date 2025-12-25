@@ -1,5 +1,5 @@
 import init, { generate_zkp } from '@neuralkey/zkp-prover'; // Import init and generate_zkp
-import initWasm from '@neuralkey/zkp-prover/zkp_prover_bg.wasm?init'; // Import Wasm with ?init
+import initWasm from '../../zkp-prover/pkg/zkp_prover_bg.wasm?init'; // Import Wasm with ?init using relative path
 import { HDNodeWallet, Mnemonic } from 'ethers';
 
 // Flag to ensure Wasm is initialized only once
