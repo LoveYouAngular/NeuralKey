@@ -25,7 +25,7 @@
               },
               {
                 "glob": "zkp_prover_bg.wasm",
-                "input": "packages/zkp-prover/pkg",
+                "input": "../../packages/zkp-prover/pkg",
                 "output": "assets"
               }
             ],
