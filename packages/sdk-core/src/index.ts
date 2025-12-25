@@ -1,5 +1,8 @@
 import { HDNodeWallet, Mnemonic } from 'ethers';
 
+// Declare wasm_bindgen globally for TypeScript
+declare const wasm_bindgen: any;
+
 // Flag to ensure Wasm is initialized only once
 let wasmInitialized = false;
 
