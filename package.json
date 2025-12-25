@@ -1,0 +1,21 @@
+{
+  "name": "neuralkey-monorepo",
+  "private": true,
+  "scripts": {
+    "build": "npm run build:ts",
+    "build:ts": "lerna run build",
+    "start:example": "echo \"Run 'npm run start:example:client' and 'npm run start:example:server' in separate terminals\"",
+    "start:example:client": "cd examples/web-login && npm run start:client",
+    "start:example:server": "cd examples/web-login && npm run start:server"
+  },
+  "devDependencies": {
+    "esbuild-plugin-wasm": "^1.1.0",
+    "esbuild-register": "^3.5.0",
+    "lerna": "^9.0.3",
+    "typescript": "^5.4.5",
+    "wasm-pack": "^0.13.1"
+  },
+  "workspaces": [
+    "packages/*"
+  ]
+}

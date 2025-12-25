@@ -1,0 +1,25 @@
+{
+  "name": "@neuralkey/example-web-login",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Example web login using the Neural Key SDK",
+  "scripts": {
+    "build:client": "npx esbuild src/index.ts --bundle --format=esm --outfile=dist/index.js --platform=browser --loader:.wasm=file --asset-names=[name]",
+    "build:server": "npx esbuild src/server.ts --bundle --platform=node --outfile=dist/server.js",
+    "build": "node build.js",
+    "start:client": "npm run build && npx http-server .",
+    "start:server": "npm run build && node dist/server.js",
+    "start": "echo \"Run 'npm run start:client' and 'npm run start:server' in separate terminals\""
+  },
+  "dependencies": {
+    "@neuralkey/sdk-core": "0.1.0",
+    "@neuralkey/behavioral-engine": "0.1.0",
+    "@neuralkey/zkp-prover": "0.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0",
+    "esbuild-register": "^3.5.0",
+    "http-server": "^14.1.1",
+    "typescript": "^5.4.5"
+  }
+}

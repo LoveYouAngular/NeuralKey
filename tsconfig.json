@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true
+  },
+  "files": [],
+  "references": [
+    { "path": "packages/sdk-core" },
+    { "path": "packages/behavioral-engine" },
+    { "path": "packages/ledger-bridge" },
+    { "path": "packages/zkp-prover" }
+  ]
+}

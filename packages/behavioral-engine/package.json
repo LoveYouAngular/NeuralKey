@@ -1,0 +1,17 @@
+{
+  "name": "@neuralkey/behavioral-engine",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Behavioral analysis for Neural Key Trust Score",
+  "main": "dist/trust-score.js",
+  "types": "dist/trust-score.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@neuralkey/sdk-core": "0.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

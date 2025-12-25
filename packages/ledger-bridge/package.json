@@ -1,0 +1,14 @@
+{
+  "name": "@neuralkey/ledger-bridge",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Immutable audit-log interface for the Neural Key Protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "@neuralkey/sdk-core",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Core SDK for the Neural Key Protocol",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@neuralkey/zkp-prover": "0.1.0",
+    "@noble/hashes": "^1.4.0",
+    "ethers": "^6.12.1",
+    "shamir-secret-sharing": "0.0.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
+}
