@@ -1,4 +1,5 @@
 import init, { generate_zkp } from '@neuralkey/zkp-prover'; // Import init and generate_zkp
+import wasmUrl from '@neuralkey/zkp-prover/zkp_prover_bg.wasm?url'; // Import Wasm as a URL
 import { HDNodeWallet, Mnemonic } from 'ethers';
 
 // Flag to ensure Wasm is initialized only once
@@ -95,10 +96,8 @@ export class NeuralHandshakeClient implements NeuralClient {
     public static async create(): Promise<NeuralHandshakeClient> {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
-            // The path to the .wasm file relative to the served Angular app.
-            // This assumes the 'pkg' directory of zkp-prover is copied to the Angular app's assets.
-            // We will need to ensure this copying happens in the Angular build process.
-            await init('/assets/zkp_prover_bg.wasm'); // Assuming the .wasm file will be in /assets
+            // Initialize WASM module using the URL provided by Vite.
+            await init(wasmUrl);
             wasmInitialized = true;
         }
 
