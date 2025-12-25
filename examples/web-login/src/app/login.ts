@@ -12,7 +12,7 @@ import { NeuralHandshakeClient, ZeroKnowledgeProof } from '@neuralkey/sdk-core';
 export class Login implements OnInit {
   status: string = 'Initializing Neural Key...';
   isLoggedIn: boolean = false;
-  private neuralClient: NeuralHandshakeClient | undefined;
+  protected neuralClient: NeuralHandshakeClient | undefined;
 
   async ngOnInit() {
     try {
