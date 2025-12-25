@@ -12,7 +12,7 @@ export class NeuralHandshakeClient {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
             // Manually fetch and initialize the Wasm module
-            const wasmPath = '/assets/zkp_prover_bg.wasm'; // Path where angular.json copies the wasm
+            const wasmPath = '/zkp_prover_bg.wasm'; // Path where angular.json copies the wasm
             const wasmBytes = await fetch(wasmPath).then(res => res.arrayBuffer());
             // Assuming wasm_bindgen is globally available from zkp_prover.js loaded via <script> tag
             await window.wasm_bindgen(wasmBytes);
