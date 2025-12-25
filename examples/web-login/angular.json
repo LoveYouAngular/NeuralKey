@@ -22,6 +22,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
+              },
+              {
+                "glob": "zkp_prover_bg.wasm",
+                "input": "packages/zkp-prover/pkg",
+                "output": "assets"
               }
             ],
             "styles": [

@@ -1,5 +1,7 @@
-import { generate_zkp } from '@neuralkey/zkp-prover';
+import init, { generate_zkp } from '@neuralkey/zkp-prover'; // Import init and generate_zkp
 import { HDNodeWallet, Mnemonic } from 'ethers';
+// Flag to ensure Wasm is initialized only once
+let wasmInitialized = false;
 /**
  * Implements the NeuralClient interface for client-side operations.
  */
@@ -8,6 +10,14 @@ export class NeuralHandshakeClient {
         this.wallet = wallet;
     }
     static async create() {
+        // Initialize WASM module if not already initialized
+        if (!wasmInitialized) {
+            // The path to the .wasm file relative to the served Angular app.
+            // This assumes the 'pkg' directory of zkp-prover is copied to the Angular app's assets.
+            // We will need to ensure this copying happens in the Angular build process.
+            await init('/assets/zkp_prover_bg.wasm'); // Assuming the .wasm file will be in /assets
+            wasmInitialized = true;
+        }
         const phrase = globalThis.localStorage.getItem("NEURAL_KEY_MNEMONIC");
         if (phrase) {
             try {

@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "build": "npm run build:ts",
-    "build:ts": "lerna run build",
+    "build:ts": "npm run build --workspace=@neuralkey/zkp-prover && npm run build --workspace=@neuralkey/sdk-core && npm run build --workspace=@neuralkey/behavioral-engine && npm run build --workspace=@neuralkey/ledger-bridge",
     "start:example": "echo \"Run 'npm run start:example:client' and 'npm run start:example:server' in separate terminals\"",
     "start:example:client": "cd examples/web-login && npm start",
     "start:example:server": "cd examples/web-login && npm run start:server"
