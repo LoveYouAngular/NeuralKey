@@ -9,9 +9,9 @@
 
 ---
 
-Neural Key is an open-source protocol designed to end the age of passwords. It transforms your unique, living behavioral patterns—how you type, move your mouse, and hold your device—into a cryptographic key that proves your identity. All analysis happens exclusively on your device, ensuring that your data and your privacy are yours alone.
+Neural Key is a protocol designed to end the age of passwords. It transforms your unique, living behavioral patterns—how you type, move your mouse, and hold your device—into a cryptographic key that proves your identity. All analysis happens exclusively on your device, ensuring that your data and your privacy are yours alone.
 
-This is not a company. This is a community-build to create a new foundation for digital identity.
+This project is currently under individual development with the long-term goal of becoming an open-source, community-driven initiative to build a new foundation for digital identity.
 
 <!--
 <div align="center">
@@ -19,14 +19,22 @@ This is not a company. This is a community-build to create a new foundation for 
 </div>
 -->
 
-## ✨ Core Principles
+## ✨ Vision & Purpose
+
+**What We Want to Do:**
+The primary goal of the Neural Key Protocol is to create a truly passwordless and secure authentication system. By leveraging unique behavioral biometrics and Zero-Knowledge Proofs, we aim to provide a seamless, highly secure, and privacy-preserving method for users to prove their identity without ever exposing sensitive data.
+
+**How It Will Help People:**
+Neural Key will liberate users from the burden of managing complex passwords, reduce the risk of data breaches due to compromised credentials, and offer a superior level of privacy by ensuring personal behavioral data never leaves the user's device. It envisions a future where digital identity is inherent, intuitive, and impenetrable.
+
+## 💡 Core Principles
 
 Neural Key is built on a foundation of uncompromising principles.
 
 1.  **Inherent Trust:** Security should be an emergent property of identity, not an external secret. We make this trust computationally verifiable.
 2.  **Edge-Only Mandate:** No servers, no clouds, no central points of failure. All cryptographic material and behavioral data live and die on the user's device.
 3.  **Zero-Knowledge, Maximum Privacy:** We use Zero-Knowledge Proofs (ZKPs) to allow users to prove their identity without revealing the data that constitutes it.
-4.  **Decentralized & Open:** The protocol is and always will be free, open-source, and community-governed.
+4.  **Future Open-Source & Decentralized:** While currently under individual development, the protocol is designed to be free, open-source, and eventually community-governed.
 
 ## 🚀 How It Works
 
@@ -38,53 +46,65 @@ The Neural Key protocol is a harmony of behavioral science and cryptography.
 4.  **Prove:** If the Trust Score surpasses a required threshold, it authorizes the creation of a **Zero-Knowledge Proof**. This proof attests that the user has access to a device-bound private key *and* has exhibited valid behavioral patterns, all without revealing the patterns themselves.
 5.  **Verify:** A relying party (a website, an app) can verify this proof against a public key and a challenge, granting access without ever seeing a password or any private data.
 
-## 🛠️ Project Status: The Genesis Phase
+## 🛠️ Technology Stack
 
-This is **Project Genesis**. The ground is fertile, but the seeds have just been sown. The core monorepo structure is in place, but the most significant technical challenges lie ahead. This is a call to builders.
+The Neural Key project is a monorepo utilizing a diverse set of modern technologies to achieve its goals:
 
-### How to Contribute
+*   **TypeScript:** For robust, type-safe application development across all JavaScript/Node.js packages.
+*   **Node.js:** Powers the JavaScript-based components and development tooling.
+*   **Lerna:** Manages the monorepo structure, facilitating package management and build processes.
+*   **Rust:** Used for performance-critical cryptographic components, particularly the Zero-Knowledge Proof prover.
+*   **WebAssembly (Wasm):** Rust code is compiled to Wasm for efficient execution in web browsers and other environments, ensuring edge-only processing.
+*   **Zero-Knowledge Proofs (ZKPs):** The core cryptographic primitive for privacy-preserving authentication.
+*   **Behavioral Biometrics / Machine Learning:** For analyzing unique user interaction patterns on-device.
 
-We need cryptographers, machine learning engineers, and full-stack developers who are passionate about building a more private and secure internet.
+## 🏁 Getting Started (For Developers)
 
-**1. Set up the Environment:**
+This section outlines how to set up and run the Neural Key project for development and testing.
 
--   Node.js (v18+)
--   npm (workspaces enabled)
+**1. Prerequisites:**
 
-**2. Build the Project:**
+*   Node.js (v18 or higher)
+*   npm (Node Package Manager)
+*   Rust (with `wasm-pack` installed for WebAssembly compilation)
+
+**2. Clone the Repository:**
 
 ```bash
-# Go into the project directory
-cd neuralkey
+git clone https://github.com/LoveYouAngular/Genesis.git
+cd Genesis
+```
 
-# Install dependencies for all packages
+**3. Install Dependencies:**
+
+Navigate to the project root and install all necessary dependencies for the monorepo:
+
+```bash
 npm install
+```
 
-# Build all packages (TypeScript and Rust/Wasm)
+**4. Build the Project:**
+
+Build all packages, including TypeScript and Rust/Wasm components:
+
+```bash
 npm run build
 ```
 
-**3. Understand the Mission:**
+**5. Running Examples:**
 
-Before you write a line of code, please read our manifesto and coding standards:
--   [**The Neural Key Manifesto (docs/MANIFESTO.md)](./docs/MANIFESTO.md)
+Refer to the `examples/` directory for specific instructions on running demonstration applications (e.g., `examples/web-login`).
 
-**4. Tackle a Core Challenge:**
+## 🛣️ Roadmap & Future Plans
 
-This is where you can make your mark. Pick a challenge and start building.
+This project is currently in its initial development phase. Key milestones include:
 
--   🧠 **Behavioral Modeling (`/packages/behavioral-engine`):** The current `TrustScore` algorithm is a simple placeholder. We need to build a sophisticated, adaptive model. This is a greenfield for ML engineers.
--   🔐 **ZKP Implementation (`/packages/sdk-core`):** We need a lightweight, performant ZKP scheme (like Groth16 or PLONK). The core proving system will be written in **Rust** and compiled to **WebAssembly** for maximum performance and security on the edge.
--   🔑 **Key Recovery (`/packages/sdk-core`):** Design and implement a (5 of 7) Shamir's Secret Sharing scheme to allow users to recover their identity without a central authority.
--   🌉 **Ledger Bridge (`/packages/ledger-bridge`):** Define the interface and implement a bridge to a decentralized ledger for a public audit log of key events.
--   🌐 **Web Example (`/examples/web-login`):** Build a real-world login example that demonstrates the full end-to-end flow of the Neural Key handshake.
+*   **Refining Behavioral Engine:** Developing sophisticated, adaptive models for user behavior analysis.
+*   **Implementing ZKP Prover:** Building a lightweight and performant ZKP scheme in Rust/Wasm.
+*   **Designing Key Recovery:** Implementing a secure, decentralized key recovery mechanism.
+*   **Developing SDK:** Creating a clear, well-documented SDK for easy integration.
 
-## 🤝 Community
-
-This is a "Zero-Budget" community build. Our capital is your passion and intellect.
-
--   **Issues:** The best way to contribute right now is to open an issue to discuss an idea or a proposed implementation.
--   **Pull Requests:** All PRs are welcome, especially those that address the core challenges above.
+Once a stable and robust core protocol is established, the project will transition to a fully open-source, community-driven model, welcoming external contributions and governance.
 
 ## 📜 License
 
