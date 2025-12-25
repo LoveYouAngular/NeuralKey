@@ -1,7 +1,5 @@
+import init, { generate_zkp } from '@neuralkey/zkp-prover';
 import { HDNodeWallet, Mnemonic } from 'ethers';
-
-// Declare wasm_bindgen globally for TypeScript
-declare const wasm_bindgen: any;
 
 // Flag to ensure Wasm is initialized only once
 let wasmInitialized = false;
@@ -97,31 +95,7 @@ export class NeuralHandshakeClient implements NeuralClient {
     public static async create(): Promise<NeuralHandshakeClient> {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
-            // Manually fetch and initialize the Wasm module from an external server
-            // The user needs to run a separate static server for zkp-prover/pkg
-            const wasmPath = 'http://localhost:8086/zkp_prover_bg.wasm'; // Placeholder URL
-            const wasmJsPath = 'http://localhost:8086/zkp_prover.js'; // Placeholder URL
-
-            // Load zkp_prover.js as a script
-            await new Promise<void>((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = wasmJsPath;
-                script.onload = () => {
-                    // Poll for wasm_bindgen to be available
-                    const checkWasmBindgen = setInterval(() => {
-                        if ((window as any).wasm_bindgen) {
-                            clearInterval(checkWasmBindgen);
-                            resolve();
-                        }
-                    }, 50); // Check every 50ms
-                };
-                script.onerror = (error) => reject(error);
-                document.head.appendChild(script);
-            });
-
-            // Initialize Wasm using the global wasm_bindgen
-            const wasmBytes = await fetch(wasmPath).then(res => res.arrayBuffer());
-            await (window as any).wasm_bindgen(wasmBytes);
+            await init();
             wasmInitialized = true;
         }
 
@@ -151,8 +125,7 @@ export class NeuralHandshakeClient implements NeuralClient {
         const encoder = new TextEncoder();
 
         // 2. Generate the Zero-Knowledge Proof using the WASM module.
-        // Assuming wasm_bindgen is globally available
-        const proof = (window as any).wasm_bindgen.generate_zkp(
+        const proof = generate_zkp(
           encoder.encode(signature),
           encoder.encode(challenge)
         );
