@@ -106,7 +106,15 @@ export class NeuralHandshakeClient implements NeuralClient {
             await new Promise<void>((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = wasmJsPath;
-                script.onload = () => resolve();
+                script.onload = () => {
+                    // Poll for wasm_bindgen to be available
+                    const checkWasmBindgen = setInterval(() => {
+                        if ((window as any).wasm_bindgen) {
+                            clearInterval(checkWasmBindgen);
+                            resolve();
+                        }
+                    }, 50); // Check every 50ms
+                };
                 script.onerror = (error) => reject(error);
                 document.head.appendChild(script);
             });

@@ -13,13 +13,21 @@ export class NeuralHandshakeClient {
         if (!wasmInitialized) {
             // Manually fetch and initialize the Wasm module from an external server
             // The user needs to run a separate static server for zkp-prover/pkg
-            const wasmPath = 'http://localhost:8081/zkp_prover_bg.wasm'; // Placeholder URL
-            const wasmJsPath = 'http://localhost:8081/zkp_prover.js'; // Placeholder URL
+            const wasmPath = 'http://localhost:8086/zkp_prover_bg.wasm'; // Placeholder URL
+            const wasmJsPath = 'http://localhost:8086/zkp_prover.js'; // Placeholder URL
             // Load zkp_prover.js as a script
             await new Promise((resolve, reject) => {
                 const script = document.createElement('script');
                 script.src = wasmJsPath;
-                script.onload = () => resolve();
+                script.onload = () => {
+                    // Poll for wasm_bindgen to be available
+                    const checkWasmBindgen = setInterval(() => {
+                        if (window.wasm_bindgen) {
+                            clearInterval(checkWasmBindgen);
+                            resolve();
+                        }
+                    }, 50); // Check every 50ms
+                };
                 script.onerror = (error) => reject(error);
                 document.head.appendChild(script);
             });
