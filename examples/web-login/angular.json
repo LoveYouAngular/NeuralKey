@@ -11,7 +11,7 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular-builders/custom-esbuild:application",
+          "builder": "@angular/build:application",
           "options": {
             "browser": "src/main.ts",
             "polyfills": [
@@ -22,22 +22,11 @@
               {
                 "glob": "**/*",
                 "input": "public"
-              },
-              {
-                "glob": "zkp_prover_bg.wasm",
-                "input": "../../packages/zkp-prover/pkg",
-                "output": "assets"
-              },
-              {
-                "glob": "zkp_prover.js",
-                "input": "../../packages/zkp-prover/pkg",
-                "output": "assets"
               }
             ],
             "styles": [
               "src/styles.css"
-            ],
-            "plugins": ["./esbuild-plugins.ts"]
+            ]
           },
           "configurations": {
             "production": {
@@ -64,7 +53,7 @@
           "defaultConfiguration": "production"
         },
         "serve": {
-          "builder": "@angular-builders/custom-esbuild:dev-server",
+          "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "web-login:build:production"

@@ -1,5 +1,3 @@
-import { generate_zkp } from '@neuralkey/zkp-prover'; // Import init and generate_zkp
-import initWasm from '/assets/zkp_prover_bg.wasm?init'; // Import Wasm with ?init using absolute path
 import { HDNodeWallet, Mnemonic } from 'ethers';
 // Flag to ensure Wasm is initialized only once
 let wasmInitialized = false;
@@ -13,7 +11,21 @@ export class NeuralHandshakeClient {
     static async create() {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
-            await initWasm(); // Initialize Wasm using Vite's ?init
+            // Manually fetch and initialize the Wasm module from an external server
+            // The user needs to run a separate static server for zkp-prover/pkg
+            const wasmPath = 'http://localhost:8080/zkp_prover_bg.wasm'; // Placeholder URL
+            const wasmJsPath = 'http://localhost:8080/zkp_prover.js'; // Placeholder URL
+            // Load zkp_prover.js as a script
+            await new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = wasmJsPath;
+                script.onload = () => resolve();
+                script.onerror = (error) => reject(error);
+                document.head.appendChild(script);
+            });
+            // Initialize Wasm using the global wasm_bindgen
+            const wasmBytes = await fetch(wasmPath).then(res => res.arrayBuffer());
+            await window.wasm_bindgen(wasmBytes);
             wasmInitialized = true;
         }
         const phrase = globalThis.localStorage.getItem("NEURAL_KEY_MNEMONIC");
@@ -40,7 +52,8 @@ export class NeuralHandshakeClient {
         const signature = await this.wallet.signMessage(challenge);
         const encoder = new TextEncoder();
         // 2. Generate the Zero-Knowledge Proof using the WASM module.
-        const proof = generate_zkp(encoder.encode(signature), encoder.encode(challenge));
+        // Assuming wasm_bindgen is globally available
+        const proof = window.wasm_bindgen.generate_zkp(encoder.encode(signature), encoder.encode(challenge));
         return {
             proof: proof,
             publicSignals: encoder.encode(challenge)

@@ -5,7 +5,7 @@
   "main": "pkg/zkp_prover.js",
   "types": "pkg/zkp_prover.d.ts",
   "scripts": {
-    "build": "wasm-pack build --target web --out-dir pkg"
+    "build": "wasm-pack build --target no-modules --out-dir pkg"
   },
   "devDependencies": {
     "wasm-pack": "^0.0.0"
