@@ -11,7 +11,7 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular/build:application",
+          "builder": "@angular-builders/custom-esbuild:application",
           "options": {
             "browser": "src/main.ts",
             "polyfills": [
@@ -36,7 +36,8 @@
             ],
             "styles": [
               "src/styles.css"
-            ]
+            ],
+            "plugins": ["./esbuild-plugins.ts"]
           },
           "configurations": {
             "production": {
@@ -63,7 +64,7 @@
           "defaultConfiguration": "production"
         },
         "serve": {
-          "builder": "@angular/build:dev-server",
+          "builder": "@angular-builders/custom-esbuild:dev-server",
           "configurations": {
             "production": {
               "buildTarget": "web-login:build:production"
