@@ -27,6 +27,11 @@
                 "glob": "zkp_prover_bg.wasm",
                 "input": "../../packages/zkp-prover/pkg",
                 "output": "assets"
+              },
+              {
+                "glob": "zkp_prover.js",
+                "input": "../../packages/zkp-prover/pkg",
+                "output": "assets"
               }
             ],
             "styles": [

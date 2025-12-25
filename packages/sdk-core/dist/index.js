@@ -1,5 +1,3 @@
-import init, { generate_zkp } from '@neuralkey/zkp-prover'; // Import init and generate_zkp
-import wasmUrl from '@neuralkey/zkp-prover/zkp_prover_bg.wasm?url'; // Import Wasm as a URL
 import { HDNodeWallet, Mnemonic } from 'ethers';
 // Flag to ensure Wasm is initialized only once
 let wasmInitialized = false;
@@ -13,8 +11,10 @@ export class NeuralHandshakeClient {
     static async create() {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
-            // Initialize WASM module using the URL provided by Vite.
-            await init(wasmUrl);
+            // Manually fetch and initialize the Wasm module
+            const wasmPath = '/assets/zkp_prover_bg.wasm'; // Path where angular.json copies the wasm
+            const wasmBytes = await fetch(wasmPath).then(res => res.arrayBuffer());
+            await wasm_bindgen(wasmBytes);
             wasmInitialized = true;
         }
         const phrase = globalThis.localStorage.getItem("NEURAL_KEY_MNEMONIC");
@@ -41,7 +41,7 @@ export class NeuralHandshakeClient {
         const signature = await this.wallet.signMessage(challenge);
         const encoder = new TextEncoder();
         // 2. Generate the Zero-Knowledge Proof using the WASM module.
-        const proof = generate_zkp(encoder.encode(signature), encoder.encode(challenge));
+        const proof = wasm_bindgen.generate_zkp(encoder.encode(signature), encoder.encode(challenge));
         return {
             proof: proof,
             publicSignals: encoder.encode(challenge)
