@@ -21,17 +21,8 @@
             "assets": [
               {
                 "glob": "**/*",
-                "input": "public"
-              },
-              {
-                "glob": "zkp_prover_bg.wasm",
-                "input": "node_modules/@neuralkey/zkp-prover/pkg",
-                "output": "browser/"
-              },
-              {
-                "glob": "zkp_prover.js",
-                "input": "node_modules/@neuralkey/zkp-prover/pkg",
-                "output": "browser/"
+                "input": "public",
+                "output": "/"
               }
             ],
             "styles": [
