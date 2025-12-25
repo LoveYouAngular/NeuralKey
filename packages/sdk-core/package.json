@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --platform=browser --target=es2020 --format=esm"
   },
   "dependencies": {
     "@neuralkey/zkp-prover": "0.1.0",
@@ -15,6 +15,7 @@
     "shamir-secret-sharing": "0.0.4"
   },
   "devDependencies": {
+    "esbuild": "^0.27.2",
     "typescript": "^5.4.5"
   }
 }
