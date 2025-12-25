@@ -99,8 +99,8 @@ export class NeuralHandshakeClient implements NeuralClient {
         if (!wasmInitialized) {
             // Manually fetch and initialize the Wasm module from an external server
             // The user needs to run a separate static server for zkp-prover/pkg
-            const wasmPath = 'http://localhost:8081/zkp_prover_bg.wasm'; // Placeholder URL
-            const wasmJsPath = 'http://localhost:8081/zkp_prover.js'; // Placeholder URL
+            const wasmPath = 'http://localhost:8086/zkp_prover_bg.wasm'; // Placeholder URL
+            const wasmJsPath = 'http://localhost:8086/zkp_prover.js'; // Placeholder URL
 
             // Load zkp_prover.js as a script
             await new Promise<void>((resolve, reject) => {
