@@ -95,7 +95,8 @@ export class NeuralHandshakeClient implements NeuralClient {
     public static async create(): Promise<NeuralHandshakeClient> {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
-            await init('/zkp_prover_bg.wasm');
+            const wasmBytes = await fetch('/zkp_prover_bg.wasm').then(res => res.arrayBuffer());
+            await init(wasmBytes);
             wasmInitialized = true;
         }
 
