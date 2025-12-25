@@ -22,16 +22,6 @@
               {
                 "glob": "**/*",
                 "input": "public"
-              },
-              {
-                "glob": "zkp_prover_bg.wasm",
-                "input": "node_modules/@neuralkey/zkp-prover/pkg",
-                "output": "/"
-              },
-              {
-                "glob": "zkp_prover.js",
-                "input": "node_modules/@neuralkey/zkp-prover/pkg",
-                "output": "/"
               }
             ],
             "styles": [
