@@ -26,16 +26,14 @@
               {
                 "glob": "zkp_prover_bg.wasm",
                 "input": "../../packages/zkp-prover/pkg",
-                "output": "."
-              },
-              {
-                "glob": "zkp_prover.js",
-                "input": "../../packages/zkp-prover/pkg",
-                "output": "."
+                "output": "assets"
               }
             ],
             "styles": [
               "src/styles.css"
+            ],
+            "externalDependencies": [
+              "@neuralkey/zkp-prover"
             ]
           },
           "configurations": {
