@@ -16,7 +16,7 @@ const similarityBar = document.getElementById('similarity-bar');
 const similarityText = document.getElementById('similarity-text');
 // --- State ---
 const SIGNATURE_KEY = 'behavioral_profile';
-const SIMILARITY_THRESHOLD = 70; // User must have a 70% pattern match
+const SIMILARITY_THRESHOLD = 70;
 const ENROLLMENT_SAMPLE_SIZE = 15;
 const VERIFY_SAMPLE_SIZE = 15;
 let wasmInitialized = false;
@@ -48,12 +48,13 @@ function calculateStats(arr) {
 }
 function showPage(pageId) {
     document.removeEventListener('keyup', continuousKeyupHandler);
+    document.removeEventListener('keydown', continuousKeydownHandler);
     enrollPassphraseInput.removeEventListener('keyup', enrollmentKeyupHandler);
-    enrollPassphraseInput.removeEventListener('keydown', () => { keydownTime = Date.now(); });
+    enrollPassphraseInput.removeEventListener('keydown', enrollmentKeydownHandler);
     if (pageId === 'verify-page') {
         resetSimilarity();
         document.addEventListener('keyup', continuousKeyupHandler);
-        document.addEventListener('keydown', () => { keydownTime = Date.now(); });
+        document.addEventListener('keydown', continuousKeydownHandler);
     }
     else {
         enrollButton.disabled = true;
@@ -61,15 +62,7 @@ function showPage(pageId) {
         recentDelays = [];
         recentDurations = [];
         enrollPassphraseInput.addEventListener('keyup', enrollmentKeyupHandler);
-        enrollPassphraseInput.addEventListener('keydown', () => {
-            keydownTime = Date.now();
-            // Reset if user starts typing again
-            if (enrollPassphraseInput.value.length < 2) {
-                recentDelays = [];
-                recentDurations = [];
-                lastKeyTime = 0;
-            }
-        });
+        enrollPassphraseInput.addEventListener('keydown', enrollmentKeydownHandler);
     }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
@@ -162,6 +155,14 @@ function handleGoToEnroll() {
     showPage('enroll-page');
 }
 // --- Event Handlers ---
+const enrollmentKeydownHandler = () => {
+    keydownTime = Date.now();
+    if (enrollPassphraseInput.value.length < 2) {
+        recentDelays = [];
+        recentDurations = [];
+        lastKeyTime = 0;
+    }
+};
 const enrollmentKeyupHandler = () => {
     if (keydownTime !== 0) {
         const now = Date.now();
@@ -178,6 +179,9 @@ const enrollmentKeyupHandler = () => {
             enrollStatus.textContent = `Capturing pattern... ${recentDelays.length}/${ENROLLMENT_SAMPLE_SIZE}`;
         }
     }
+};
+const continuousKeydownHandler = (e) => {
+    keydownTime = Date.now();
 };
 const continuousKeyupHandler = (e) => {
     const now = Date.now();
@@ -203,13 +207,11 @@ const continuousKeyupHandler = (e) => {
         delay: calculateStats(recentDelays),
         duration: calculateStats(recentDurations),
     };
-    // More forgiving similarity calculation
     const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / (storedProfile.pattern.delay.avg || 1)) * 100);
-    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / (storedProfile.pattern.delay.std || 1)) * 50); // Less penalty for std dev
+    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / (storedProfile.pattern.delay.std || 1)) * 50);
     const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / (storedProfile.pattern.duration.avg || 1)) * 100);
-    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / (storedProfile.pattern.duration.std || 1)) * 50); // Less penalty for std dev
-    // Weighted average, giving more weight to the averages than the consistency
-    similarityScore = (delayAvgSimilarity * 0.5) + (delayStdSimilarity * 0.05) + (durationAvgSimilarity * 0.4) + (durationStdSimilarity * 0.05);
+    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / (storedProfile.pattern.duration.std || 1)) * 50);
+    similarityScore = (delayAvgSimilarity * 0.45) + (delayStdSimilarity * 0.05) + (durationAvgSimilarity * 0.45) + (durationStdSimilarity * 0.05);
     updateSimilarityUI();
 };
 // --- Entry Point ---
