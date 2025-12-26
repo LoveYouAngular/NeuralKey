@@ -1,0 +1,16 @@
+{
+  "name": "@neuralkey/zkp-prover",
+  "version": "0.1.0",
+  "description": "WASM-based ZKP prover for the Neural Key Protocol",
+  "main": "pkg/zkp_prover.js",
+  "types": "pkg/zkp_prover.d.ts",
+  "scripts": {
+    "build": "wasm-pack build --target no-modules --out-dir pkg"
+  },
+  "devDependencies": {
+    "wasm-pack": "^0.0.0"
+  },
+  "dependencies": {
+    "lerna": "9.0.3"
+  }
+}

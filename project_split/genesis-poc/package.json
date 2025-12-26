@@ -1,0 +1,16 @@
+{
+  "name": "genesis-poc",
+  "version": "1.0.0",
+  "description": "A proof-of-concept for keyless owner recognition using behavioral biometrics and Zero-Knowledge Proofs.",
+  "main": "dist/index.js",
+  "scripts": {
+    "build:wasm": "cd zkp-prover && npm install && npm run build",
+    "build:ts": "npx tsc --project tsconfig.json",
+    "build": "npm run build:wasm && npm run build:ts",
+    "start": "npx serve ."
+  },
+  "devDependencies": {
+    "serve": "^14.2.3",
+    "typescript": "^5.4.5"
+  }
+}

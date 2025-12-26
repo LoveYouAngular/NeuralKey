@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futuristic ZKP Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        :root {
+            --glow-color: #00ffff;
+            --error-color: #FF4757;
+            --bg-color: #030014;
+            --glass-bg: rgba(20, 20, 50, 0.15);
+            --glass-border: rgba(0, 255, 255, 0.2);
+            --text-color: #d0d0ff;
+            --text-color-dark: #8080a0;
+            --border-radius: 12px;
+        }
+
+        body {
+            font-family: 'Roboto Mono', monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            margin: 0;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+        
+        .page {
+            display: none; /* All pages hidden by default */
+            z-index: 2;
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        .card {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 40px;
+            border-radius: var(--border-radius);
+            box-shadow: 0 0 40px rgba(0, 255, 255, 0.1);
+        }
+
+        h1 {
+            font-weight: 500;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        p {
+            color: var(--text-color-dark);
+            margin-bottom: 30px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .button {
+            background: transparent;
+            color: var(--glow-color);
+            border: 2px solid var(--glow-color);
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 500;
+            font-family: 'Roboto Mono', monospace;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .button:hover {
+            background: var(--glow-color);
+            color: var(--bg-color);
+        }
+        
+        .button:disabled {
+            border-color: var(--text-color-dark);
+            color: var(--text-color-dark);
+            background: transparent;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .text-input {
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--glass-border);
+            color: var(--text-color);
+            padding: 15px;
+            font-size: 16px;
+            font-family: 'Roboto Mono', monospace;
+            border-radius: var(--border-radius);
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .text-input:focus {
+            outline: none;
+            border-color: var(--glow-color);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+        }
+
+        #status-container {
+            margin-top: 20px;
+            min-height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #status-text {
+            font-size: 14px;
+            text-align: center;
+            width: 100%;
+            line-height: 1.6;
+        }
+        
+        .sub-button {
+            background: none;
+            border: none;
+            color: var(--text-color-dark);
+            text-decoration: underline;
+            cursor: pointer;
+            margin-top: 20px;
+            font-family: 'Roboto Mono', monospace;
+        }
+        .sub-button:hover {
+            color: var(--glow-color);
+        }
+        
+        .similarity-meter {
+            width: 100%;
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 4px;
+            margin-top: 20px;
+            border: 1px solid var(--glass-border);
+        }
+        
+        #similarity-bar {
+            width: 0%;
+            height: 10px;
+            background-color: var(--error-color);
+            border-radius: 4px;
+            transition: width 0.5s ease-out, background-color 0.5s ease-out;
+        }
+        
+        #similarity-text {
+            font-size: 12px;
+            margin-top: 5px;
+            color: var(--text-color-dark);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    
+    <!-- ENROLLMENT PAGE -->
+    <div id="enroll-page" class="page">
+        <div class="card">
+            <h1>Behavioral Enrollment</h1>
+            <p>Enter a secret passphrase of at least 15 characters. The "Enroll" button will activate once a clear pattern is detected.</p>
+            <input type="password" id="enrollPassphrase" class="text-input" placeholder="Enter secret passphrase...">
+            <button id="enrollButton" class="button" disabled>Enroll Behavioral Profile</button>
+            <div id="enroll-status" class="status-text"></div>
+            <button id="goToVerifyButton" class="sub-button">Already enrolled? Go to Verification</button>
+        </div>
+    </div>
+
+    <!-- VERIFICATION PAGE -->
+    <div id="verify-page" class="page">
+        <div class="card">
+            <h1>Behavioral Verification</h1>
+            <p>Interact with the page by typing anywhere. The system will analyze your behavior to build a similarity score.</p>
+            
+            <div class="similarity-meter">
+                <div id="similarity-bar"></div>
+            </div>
+            <div id="similarity-text">Similarity: 0%</div>
+            
+            <input type="password" id="verifyPassphrase" class="text-input" placeholder="Enter secret passphrase to finalize...">
+            <button id="verifyButton" class="button" disabled>Initiate Proof Sequence</button>
+            
+            <div id="status-container">
+                <div id="status-text">Awaiting behavioral analysis...</div>
+            </div>
+            <button id="goToEnrollButton" class="sub-button">Enroll a new profile</button>
+        </div>
+    </div>
+
+    <script src="dist/index.js"></script>
+</body>
+</html>
