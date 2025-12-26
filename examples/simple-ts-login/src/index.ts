@@ -3,19 +3,40 @@ declare const wasm_bindgen: any;
 declare const THREE: any;
 
 // --- DOM Elements ---
-const loginButton = document.getElementById('loginButton') as HTMLButtonElement;
-const statusText = document.getElementById('status-text') as HTMLDivElement;
 const canvas = document.getElementById('bg-canvas') as HTMLCanvasElement;
-const authButton = document.getElementById('authButton') as HTMLButtonElement;
-const unauthButton = document.getElementById('unauthButton') as HTMLButtonElement;
+
+// Page containers
+const loginPage = document.getElementById('login-page') as HTMLDivElement;
+const dashboardPage = document.getElementById('dashboard-page') as HTMLDivElement;
+const unauthorizedPage = document.getElementById('unauthorized-page') as HTMLDivElement;
+const allPages = [loginPage, dashboardPage, unauthorizedPage];
+
+// Buttons
+const loginButton = document.getElementById('loginButton') as HTMLButtonElement;
+const proofButton = document.getElementById('proofButton') as HTMLButtonElement;
+const logoutButton = document.getElementById('logoutButton') as HTMLButtonElement;
+const returnButton = document.getElementById('returnButton') as HTMLButtonElement;
+
+// Status display
+const statusText = document.getElementById('status-text') as HTMLDivElement;
 
 
-// --- WASM State ---
+// --- State ---
 let wasmInitialized = false;
 let scriptLoadPromise: Promise<void> | null = null;
 
 // --- 3D Scene State ---
 let scene: any, camera: any, renderer: any, particles: any;
+
+/**
+ * Hides all page divs and shows the one with the specified ID.
+ * @param pageId The ID of the page to show.
+ */
+function showPage(pageId: 'login-page' | 'dashboard-page' | 'unauthorized-page') {
+    allPages.forEach(page => {
+        page.style.display = page.id === pageId ? 'block' : 'none';
+    });
+}
 
 /**
  * Initializes the three.js 3D animated background.
@@ -29,31 +50,19 @@ function init3DBackground() {
 
     const particleCount = 5000;
     const positions = new Float32Array(particleCount * 3);
-    const colors = new Float32Array(particleCount * 3);
-    const color = new THREE.Color();
-
     for (let i = 0; i < particleCount; i++) {
-        const x = (Math.random() - 0.5) * 2000;
-        const y = (Math.random() - 0.5) * 2000;
-        const z = (Math.random() - 0.5) * 2000;
-        positions[i * 3] = x;
-        positions[i * 3 + 1] = y;
-        positions[i * 3 + 2] = z;
-        color.setHSL(0.5 + 0.2 * Math.random(), 0.7, 0.5 + 0.2 * Math.random());
-        colors[i * 3] = color.r;
-        colors[i * 3 + 1] = color.g;
-        colors[i * 3 + 2] = color.b;
+        positions[i * 3] = (Math.random() - 0.5) * 2000;
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 2000;
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 2000;
     }
-
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     const material = new THREE.PointsMaterial({
-        size: 2,
-        vertexColors: true,
+        size: 1.5,
+        color: 0x00ffff,
         blending: THREE.AdditiveBlending,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.7,
     });
     particles = new THREE.Points(geometry, material);
     scene.add(particles);
@@ -73,13 +82,12 @@ function init3DBackground() {
 function animate() {
     requestAnimationFrame(animate);
     const time = Date.now() * 0.0001;
-    particles.rotation.x = time;
     particles.rotation.y = time;
     renderer.render(scene, camera);
 }
 
 /**
- * Updates the status display on the page.
+ * Updates the status display on the dashboard page.
  */
 function updateStatus(message: string) {
     console.log(message);
@@ -107,16 +115,15 @@ function loadWasmScript(): Promise<void> {
 }
 
 /**
- * The main proof generation function.
+ * The main proof generation function, called from the dashboard.
  */
-async function performLogin() {
-    loginButton.disabled = true;
+async function performProofGeneration() {
+    proofButton.disabled = true;
     updateStatus('Initiating...');
 
-    // ** AUTHORIZATION CHECK **
     if (localStorage.getItem('isAuthorized') !== 'true') {
-        updateStatus('Error: User is unauthorized.');
-        loginButton.disabled = false;
+        showPage('unauthorized-page');
+        proofButton.disabled = false;
         return;
     }
 
@@ -136,45 +143,43 @@ async function performLogin() {
         
         const proof = wasm_bindgen.generate_zkp(privateInput, publicInput);
         
-        updateStatus(`Proof Generated: [${proof.slice(0, 30)}...]`);
+        updateStatus(`Proof Generated: [${proof.slice(0, 40)}...]`);
         console.log('Generated Proof:', proof);
 
     } catch (error: any) {
         updateStatus(`Error: ${error.message}`);
         console.error(error);
     } finally {
-        loginButton.disabled = false;
+        proofButton.disabled = false;
     }
 }
 
-/**
- * Simulates a user logging in and gaining authorization.
- */
-function simulateLogin() {
+// --- Event Handlers ---
+function handleLogin() {
     localStorage.setItem('isAuthorized', 'true');
-    updateStatus('Authorization token set. Ready to generate proof.');
+    showPage('dashboard-page');
+    updateStatus('Awaiting command...');
 }
 
-/**
- * Simulates a user logging out and losing authorization.
- */
-function simulateLogout() {
+function handleLogout() {
     localStorage.removeItem('isAuthorized');
-    updateStatus('Authorization token cleared. Proof generation will be denied.');
+    showPage('login-page');
 }
-
 
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
     init3DBackground();
-    if (loginButton) loginButton.addEventListener('click', performLogin);
-    if (authButton) authButton.addEventListener('click', simulateLogin);
-    if (unauthButton) unauthButton.addEventListener('click', simulateLogout);
+    
+    // Attach event listeners
+    loginButton.addEventListener('click', handleLogin);
+    logoutButton.addEventListener('click', handleLogout);
+    proofButton.addEventListener('click', performProofGeneration);
+    returnButton.addEventListener('click', handleLogout); // Return button logs user out
 
-    // Set initial status based on auth state
+    // Initial page load logic
     if (localStorage.getItem('isAuthorized') === 'true') {
-        updateStatus('User is authorized. Awaiting command...');
+        showPage('dashboard-page');
     } else {
-        updateStatus('User is unauthorized. Please simulate login.');
+        showPage('login-page');
     }
 });
