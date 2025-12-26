@@ -12,23 +12,21 @@ const verifyPassphraseInput = document.getElementById('verifyPassphrase');
 const verifyButton = document.getElementById('verifyButton');
 const statusText = document.getElementById('status-text');
 const goToEnrollButton = document.getElementById('goToEnrollButton');
-const confidenceBar = document.getElementById('confidence-bar');
-const confidenceText = document.getElementById('confidence-text');
+const similarityBar = document.getElementById('similarity-bar');
+const similarityText = document.getElementById('similarity-text');
 // --- State ---
-const SIGNATURE_KEY = 'behavioral_signature_vector';
-const CONFIDENCE_THRESHOLD = 75;
-const MAX_CONFIDENCE = 100;
-const SCORE_INCREASE = 1; // Slower, more deliberate increase
-const SCORE_DECREASE = 2; // Harsher penalty for anomalies
-const TOLERANCE = { typingDelay: 50, keyDuration: 30, mouseVelocity: 200 };
+const SIGNATURE_KEY = 'behavioral_profile';
+const SIMILARITY_THRESHOLD = 70; // User must have a 70% pattern match
+const MAX_SIMILARITY = 100;
+const SAMPLE_SIZE = 15; // Analyze the last 15 keystrokes
 let wasmInitialized = false;
 let scriptLoadPromise = null;
-let confidenceScore = 0;
+let similarityScore = 0;
 // Data collection state
 let keydownTime = 0;
 let lastKeyTime = 0;
-let lastMousePoint = { x: 0, y: 0, time: 0 };
-let enrollMetrics = { delays: [], durations: [] };
+let recentDelays = [];
+let recentDurations = [];
 // --- 3D Scene (Omitted for brevity) ---
 let scene, camera, renderer, particles;
 function init3DBackground() { }
@@ -41,22 +39,21 @@ async function hashString(str) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-function calculateAverage(arr) {
+/**
+ * Calculates the average and standard deviation of an array.
+ */
+function calculateStats(arr) {
     if (arr.length === 0)
-        return 0;
-    return arr.reduce((a, b) => a + b, 0) / arr.length;
+        return { avg: 0, std: 0 };
+    const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
+    const std = Math.sqrt(arr.map(x => Math.pow(x - avg, 2)).reduce((a, b) => a + b, 0) / arr.length);
+    return { avg, std };
 }
 function showPage(pageId) {
-    // Detach all global listeners when switching pages
-    document.removeEventListener('keydown', continuousKeydownHandler);
     document.removeEventListener('keyup', continuousKeyupHandler);
-    document.removeEventListener('mousemove', continuousMouseMoveHandler);
     if (pageId === 'verify-page') {
-        resetConfidence();
-        // Attach listeners for continuous authentication
-        document.addEventListener('keydown', continuousKeydownHandler);
+        resetSimilarity();
         document.addEventListener('keyup', continuousKeyupHandler);
-        document.addEventListener('mousemove', continuousMouseMoveHandler);
     }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
@@ -65,26 +62,26 @@ function showPage(pageId) {
 function updateVerifyStatus(message) {
     statusText.textContent = message;
 }
-function updateConfidenceUI() {
-    confidenceScore = Math.max(0, Math.min(MAX_CONFIDENCE, confidenceScore));
-    confidenceBar.style.width = `${confidenceScore}%`;
-    confidenceText.textContent = `Confidence: ${confidenceScore.toFixed(0)}%`;
-    if (confidenceScore >= CONFIDENCE_THRESHOLD) {
+function updateSimilarityUI() {
+    similarityScore = Math.max(0, Math.min(MAX_SIMILARITY, similarityScore));
+    similarityBar.style.width = `${similarityScore}%`;
+    similarityText.textContent = `Similarity: ${similarityScore.toFixed(0)}%`;
+    if (similarityScore >= SIMILARITY_THRESHOLD) {
         verifyButton.disabled = false;
-        confidenceBar.style.backgroundColor = 'var(--glow-color)';
+        similarityBar.style.backgroundColor = 'var(--glow-color)';
     }
     else {
         verifyButton.disabled = true;
-        confidenceBar.style.backgroundColor = 'var(--error-color)';
+        similarityBar.style.backgroundColor = 'var(--error-color)';
     }
 }
-function resetConfidence() {
-    confidenceScore = 0;
+function resetSimilarity() {
+    similarityScore = 0;
+    recentDelays = [];
+    recentDurations = [];
     lastKeyTime = 0;
-    keydownTime = 0;
-    lastMousePoint = { x: 0, y: 0, time: 0 };
-    updateConfidenceUI();
-    updateVerifyStatus('Awaiting user behavior...');
+    updateSimilarityUI();
+    updateVerifyStatus('Awaiting behavioral analysis...');
 }
 async function handleEnrollment() {
     const passphrase = enrollPassphraseInput.value;
@@ -92,19 +89,21 @@ async function handleEnrollment() {
         enrollStatus.textContent = 'Passphrase must be at least 8 characters.';
         return;
     }
-    const vector = {
-        typingDelay: calculateAverage(enrollMetrics.delays),
-        keyDuration: calculateAverage(enrollMetrics.durations),
+    // Use the currently typed data for enrollment
+    const pattern = {
+        delay: calculateStats(recentDelays),
+        duration: calculateStats(recentDurations),
     };
-    if (vector.typingDelay === 0 || vector.keyDuration === 0) {
+    if (pattern.delay.avg === 0 || pattern.duration.avg === 0) {
         enrollStatus.textContent = 'Could not capture a clear pattern. Please type the phrase again.';
         return;
     }
-    enrollStatus.textContent = 'Generating signature hash...';
+    enrollStatus.textContent = 'Generating profile hash...';
     const hash = await hashString(passphrase);
-    localStorage.setItem(SIGNATURE_KEY, JSON.stringify({ hash, vector }));
+    localStorage.setItem(SIGNATURE_KEY, JSON.stringify({ hash, pattern }));
     enrollStatus.textContent = 'Enrollment Successful!';
-    enrollMetrics = { delays: [], durations: [] }; // Reset metrics
+    recentDelays = [];
+    recentDurations = [];
     setTimeout(() => {
         showPage('verify-page');
         verifyPassphraseInput.value = '';
@@ -114,16 +113,16 @@ async function performVerification() {
     verifyButton.disabled = true;
     updateVerifyStatus('Finalizing verification...');
     const passphrase = verifyPassphraseInput.value;
-    const storedSignatureJSON = localStorage.getItem(SIGNATURE_KEY);
-    if (!storedSignatureJSON) {
-        resetConfidence();
+    const storedProfileJSON = localStorage.getItem(SIGNATURE_KEY);
+    if (!storedProfileJSON) {
+        resetSimilarity();
         return;
     }
-    const storedSignature = JSON.parse(storedSignatureJSON);
+    const storedProfile = JSON.parse(storedProfileJSON);
     const currentHash = await hashString(passphrase);
-    if (currentHash !== storedSignature.hash) {
+    if (currentHash !== storedProfile.hash) {
         updateVerifyStatus('Final Check Failed: Passphrase is incorrect.');
-        resetConfidence();
+        resetSimilarity();
         return;
     }
     updateVerifyStatus('Passphrase correct. Generating proof...');
@@ -157,39 +156,41 @@ function handleGoToEnroll() {
     enrollStatus.textContent = '';
     showPage('enroll-page');
 }
-// --- Continuous Authentication Handlers ---
-const continuousKeydownHandler = (e) => {
-    keydownTime = Date.now();
-};
+// --- Continuous Authentication Handler ---
 const continuousKeyupHandler = (e) => {
-    const storedSignature = JSON.parse(localStorage.getItem(SIGNATURE_KEY) || '{}');
-    if (!storedSignature.vector || keydownTime === 0)
-        return;
-    const duration = Date.now() - keydownTime;
-    const durationDiff = Math.abs(duration - storedSignature.vector.keyDuration);
-    confidenceScore += (durationDiff < TOLERANCE.keyDuration) ? SCORE_INCREASE : -SCORE_DECREASE;
-    if (lastKeyTime !== 0) {
-        const delay = Date.now() - lastKeyTime;
-        const delayDiff = Math.abs(delay - storedSignature.vector.typingDelay);
-        confidenceScore += (delayDiff < TOLERANCE.typingDelay) ? SCORE_INCREASE : -SCORE_DECREASE;
-    }
-    lastKeyTime = Date.now();
-    updateConfidenceUI();
-};
-const continuousMouseMoveHandler = (e) => {
     const now = Date.now();
-    if (lastMousePoint.time === 0) {
-        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
+    if (keydownTime !== 0) {
+        const duration = now - keydownTime;
+        recentDurations.push(duration);
+        if (recentDurations.length > SAMPLE_SIZE)
+            recentDurations.shift();
+    }
+    if (lastKeyTime !== 0) {
+        const delay = now - lastKeyTime;
+        recentDelays.push(delay);
+        if (recentDelays.length > SAMPLE_SIZE)
+            recentDelays.shift();
+    }
+    lastKeyTime = now;
+    // Don't start scoring until we have a decent sample size
+    if (recentDelays.length < 5)
         return;
-    }
-    const timeDelta = now - lastMousePoint.time;
-    if (timeDelta > 50) { // Sample every 50ms
-        // For this simulation, we'll just add a small amount of confidence for any movement
-        // A real system would compare velocity/acceleration to an enrolled pattern
-        confidenceScore += SCORE_INCREASE / 2; // Increase score slowly on mouse move
-        updateConfidenceUI();
-        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
-    }
+    const storedProfile = JSON.parse(localStorage.getItem(SIGNATURE_KEY) || '{}');
+    if (!storedProfile.pattern)
+        return;
+    const currentStats = {
+        delay: calculateStats(recentDelays),
+        duration: calculateStats(recentDurations),
+    };
+    // Calculate similarity for each metric (0-100 scale)
+    // 100% if perfect match, decreases as the difference grows
+    const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / storedProfile.pattern.delay.avg) * 100);
+    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / storedProfile.pattern.delay.std) * 100);
+    const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / storedProfile.pattern.duration.avg) * 100);
+    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / storedProfile.pattern.duration.std) * 100);
+    // Weighted average of similarities
+    similarityScore = (delayAvgSimilarity * 0.4) + (delayStdSimilarity * 0.1) + (durationAvgSimilarity * 0.4) + (durationStdSimilarity * 0.1);
+    updateSimilarityUI();
 };
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -224,19 +225,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animate();
     // Attach event listeners for enrollment typing
-    enrollPassphraseInput.addEventListener('keydown', () => {
-        keydownTime = Date.now();
-        // Reset on new typing session
-        if (enrollMetrics.delays.length > 10) {
-            enrollMetrics = { delays: [], durations: [] };
-            lastKeyTime = 0;
-        }
-    });
+    enrollPassphraseInput.addEventListener('keydown', () => { keydownTime = Date.now(); });
     enrollPassphraseInput.addEventListener('keyup', () => {
         if (keydownTime !== 0) {
-            enrollMetrics.durations.push(Date.now() - keydownTime);
+            recentDurations.push(Date.now() - keydownTime);
             if (lastKeyTime !== 0) {
-                enrollMetrics.delays.push(Date.now() - lastKeyTime);
+                recentDelays.push(Date.now() - lastKeyTime);
             }
             lastKeyTime = Date.now();
         }
