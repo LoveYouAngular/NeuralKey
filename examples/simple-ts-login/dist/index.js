@@ -111,8 +111,9 @@ async function performLogin() {
         }
         updateStatus('Generating proof...');
         const encoder = new TextEncoder();
-        const privateInput = encoder.encode('private_data_stream');
-        const publicInput = encoder.encode('challenge_string');
+        const privateInput = encoder.encode('user_private_secret_key');
+        // Generate a new, random challenge for each attempt
+        const publicInput = encoder.encode(`challenge_${Date.now()}_${Math.random()}`);
         const proof = wasm_bindgen.generate_zkp(privateInput, publicInput);
         updateStatus(`Proof Generated: [${proof.slice(0, 30)}...]`);
         console.log('Generated Proof:', proof);
