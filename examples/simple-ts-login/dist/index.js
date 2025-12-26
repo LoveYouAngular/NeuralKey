@@ -3,6 +3,8 @@
 const loginButton = document.getElementById('loginButton');
 const statusText = document.getElementById('status-text');
 const canvas = document.getElementById('bg-canvas');
+const authButton = document.getElementById('authButton');
+const unauthButton = document.getElementById('unauthButton');
 // --- WASM State ---
 let wasmInitialized = false;
 let scriptLoadPromise = null;
@@ -12,15 +14,11 @@ let scene, camera, renderer, particles;
  * Initializes the three.js 3D animated background.
  */
 function init3DBackground() {
-    // Scene
     scene = new THREE.Scene();
-    // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 300;
-    // Renderer
     renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    // Particles
     const particleCount = 5000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -49,7 +47,6 @@ function init3DBackground() {
     });
     particles = new THREE.Points(geometry, material);
     scene.add(particles);
-    // Handle window resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -69,7 +66,6 @@ function animate() {
 }
 /**
  * Updates the status display on the page.
- * @param message The message to display.
  */
 function updateStatus(message) {
     console.log(message);
@@ -79,9 +75,8 @@ function updateStatus(message) {
  * Dynamically loads the /assets/zkp_prover.js script.
  */
 function loadWasmScript() {
-    if (scriptLoadPromise) {
+    if (scriptLoadPromise)
         return scriptLoadPromise;
-    }
     scriptLoadPromise = new Promise((resolve, reject) => {
         updateStatus('Loading secure module...');
         const script = document.createElement('script');
@@ -97,11 +92,17 @@ function loadWasmScript() {
     return scriptLoadPromise;
 }
 /**
- * The main login logic function.
+ * The main proof generation function.
  */
 async function performLogin() {
     loginButton.disabled = true;
     updateStatus('Initiating...');
+    // ** AUTHORIZATION CHECK **
+    if (localStorage.getItem('isAuthorized') !== 'true') {
+        updateStatus('Error: User is unauthorized.');
+        loginButton.disabled = false;
+        return;
+    }
     try {
         await loadWasmScript();
         if (!wasmInitialized) {
@@ -112,7 +113,6 @@ async function performLogin() {
         updateStatus('Generating proof...');
         const encoder = new TextEncoder();
         const privateInput = encoder.encode('user_private_secret_key');
-        // Generate a new, random challenge for each attempt
         const publicInput = encoder.encode(`challenge_${Date.now()}_${Math.random()}`);
         const proof = wasm_bindgen.generate_zkp(privateInput, publicInput);
         updateStatus(`Proof Generated: [${proof.slice(0, 30)}...]`);
@@ -126,10 +126,34 @@ async function performLogin() {
         loginButton.disabled = false;
     }
 }
+/**
+ * Simulates a user logging in and gaining authorization.
+ */
+function simulateLogin() {
+    localStorage.setItem('isAuthorized', 'true');
+    updateStatus('Authorization token set. Ready to generate proof.');
+}
+/**
+ * Simulates a user logging out and losing authorization.
+ */
+function simulateLogout() {
+    localStorage.removeItem('isAuthorized');
+    updateStatus('Authorization token cleared. Proof generation will be denied.');
+}
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
     init3DBackground();
-    if (loginButton) {
+    if (loginButton)
         loginButton.addEventListener('click', performLogin);
+    if (authButton)
+        authButton.addEventListener('click', simulateLogin);
+    if (unauthButton)
+        unauthButton.addEventListener('click', simulateLogout);
+    // Set initial status based on auth state
+    if (localStorage.getItem('isAuthorized') === 'true') {
+        updateStatus('User is authorized. Awaiting command...');
+    }
+    else {
+        updateStatus('User is unauthorized. Please simulate login.');
     }
 });

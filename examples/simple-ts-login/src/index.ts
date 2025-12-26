@@ -6,6 +6,9 @@ declare const THREE: any;
 const loginButton = document.getElementById('loginButton') as HTMLButtonElement;
 const statusText = document.getElementById('status-text') as HTMLDivElement;
 const canvas = document.getElementById('bg-canvas') as HTMLCanvasElement;
+const authButton = document.getElementById('authButton') as HTMLButtonElement;
+const unauthButton = document.getElementById('unauthButton') as HTMLButtonElement;
+
 
 // --- WASM State ---
 let wasmInitialized = false;
@@ -18,18 +21,12 @@ let scene: any, camera: any, renderer: any, particles: any;
  * Initializes the three.js 3D animated background.
  */
 function init3DBackground() {
-    // Scene
     scene = new THREE.Scene();
-
-    // Camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 300;
-
-    // Renderer
     renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
 
-    // Particles
     const particleCount = 5000;
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -42,7 +39,6 @@ function init3DBackground() {
         positions[i * 3] = x;
         positions[i * 3 + 1] = y;
         positions[i * 3 + 2] = z;
-
         color.setHSL(0.5 + 0.2 * Math.random(), 0.7, 0.5 + 0.2 * Math.random());
         colors[i * 3] = color.r;
         colors[i * 3 + 1] = color.g;
@@ -52,7 +48,6 @@ function init3DBackground() {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
     const material = new THREE.PointsMaterial({
         size: 2,
         vertexColors: true,
@@ -60,11 +55,9 @@ function init3DBackground() {
         transparent: true,
         opacity: 0.8,
     });
-
     particles = new THREE.Points(geometry, material);
     scene.add(particles);
 
-    // Handle window resize
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -79,18 +72,14 @@ function init3DBackground() {
  */
 function animate() {
     requestAnimationFrame(animate);
-
     const time = Date.now() * 0.0001;
     particles.rotation.x = time;
     particles.rotation.y = time;
-
     renderer.render(scene, camera);
 }
 
-
 /**
  * Updates the status display on the page.
- * @param message The message to display.
  */
 function updateStatus(message: string) {
     console.log(message);
@@ -101,9 +90,7 @@ function updateStatus(message: string) {
  * Dynamically loads the /assets/zkp_prover.js script.
  */
 function loadWasmScript(): Promise<void> {
-    if (scriptLoadPromise) {
-        return scriptLoadPromise;
-    }
+    if (scriptLoadPromise) return scriptLoadPromise;
     scriptLoadPromise = new Promise((resolve, reject) => {
         updateStatus('Loading secure module...');
         const script = document.createElement('script');
@@ -120,11 +107,18 @@ function loadWasmScript(): Promise<void> {
 }
 
 /**
- * The main login logic function.
+ * The main proof generation function.
  */
 async function performLogin() {
     loginButton.disabled = true;
     updateStatus('Initiating...');
+
+    // ** AUTHORIZATION CHECK **
+    if (localStorage.getItem('isAuthorized') !== 'true') {
+        updateStatus('Error: User is unauthorized.');
+        loginButton.disabled = false;
+        return;
+    }
 
     try {
         await loadWasmScript();
@@ -138,8 +132,6 @@ async function performLogin() {
 
         const encoder = new TextEncoder();
         const privateInput = encoder.encode('user_private_secret_key');
-        
-        // Generate a new, random challenge for each attempt
         const publicInput = encoder.encode(`challenge_${Date.now()}_${Math.random()}`);
         
         const proof = wasm_bindgen.generate_zkp(privateInput, publicInput);
@@ -155,10 +147,34 @@ async function performLogin() {
     }
 }
 
+/**
+ * Simulates a user logging in and gaining authorization.
+ */
+function simulateLogin() {
+    localStorage.setItem('isAuthorized', 'true');
+    updateStatus('Authorization token set. Ready to generate proof.');
+}
+
+/**
+ * Simulates a user logging out and losing authorization.
+ */
+function simulateLogout() {
+    localStorage.removeItem('isAuthorized');
+    updateStatus('Authorization token cleared. Proof generation will be denied.');
+}
+
+
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
     init3DBackground();
-    if (loginButton) {
-        loginButton.addEventListener('click', performLogin);
+    if (loginButton) loginButton.addEventListener('click', performLogin);
+    if (authButton) authButton.addEventListener('click', simulateLogin);
+    if (unauthButton) unauthButton.addEventListener('click', simulateLogout);
+
+    // Set initial status based on auth state
+    if (localStorage.getItem('isAuthorized') === 'true') {
+        updateStatus('User is authorized. Awaiting command...');
+    } else {
+        updateStatus('User is unauthorized. Please simulate login.');
     }
 });

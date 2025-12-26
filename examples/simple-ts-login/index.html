@@ -12,6 +12,7 @@
         :root {
             --primary-color: #00cyan; /* Electric Cyan */
             --glow-color: #00ffff;
+            --error-color: #FF4757;
             --bg-color: #030014;
             --glass-bg: rgba(20, 20, 50, 0.15);
             --glass-border: rgba(0, 255, 255, 0.2);
@@ -23,6 +24,7 @@
         body {
             font-family: 'Roboto Mono', monospace;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -70,6 +72,29 @@
             width: 100%;
             max-width: 450px;
             z-index: 2;
+            margin-bottom: 20px;
+        }
+
+        .admin-panel {
+            display: flex;
+            gap: 10px;
+        }
+
+        .admin-button {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--text-color-dark);
+            color: var(--text-color-dark);
+            padding: 8px 12px;
+            font-size: 12px;
+            font-family: 'Roboto Mono', monospace;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .admin-button:hover {
+            background: var(--glass-bg);
+            color: var(--text-color);
+            border-color: var(--text-color);
         }
 
         h1 {
@@ -173,6 +198,11 @@
         <div id="status-container">
             <div id="status-text">Awaiting command...</div>
         </div>
+    </div>
+
+    <div class="admin-panel">
+        <button id="authButton" class="admin-button">Simulate Login (Authorize)</button>
+        <button id="unauthButton" class="admin-button">Simulate Logout (Unauthorize)</button>
     </div>
 
     <script src="dist/index.js"></script>
