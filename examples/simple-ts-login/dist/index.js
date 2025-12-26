@@ -18,15 +18,16 @@ const confidenceText = document.getElementById('confidence-text');
 const SIGNATURE_KEY = 'behavioral_signature_vector';
 const CONFIDENCE_THRESHOLD = 75;
 const MAX_CONFIDENCE = 100;
-const SCORE_INCREASE = 2;
-const SCORE_DECREASE = 1;
-const TOLERANCE = { typingDelay: 50, keyDuration: 30 };
+const SCORE_INCREASE = 1; // Slower, more deliberate increase
+const SCORE_DECREASE = 2; // Harsher penalty for anomalies
+const TOLERANCE = { typingDelay: 50, keyDuration: 30, mouseVelocity: 200 };
 let wasmInitialized = false;
 let scriptLoadPromise = null;
 let confidenceScore = 0;
 // Data collection state
 let keydownTime = 0;
 let lastKeyTime = 0;
+let lastMousePoint = { x: 0, y: 0, time: 0 };
 let enrollMetrics = { delays: [], durations: [] };
 // --- 3D Scene (Omitted for brevity) ---
 let scene, camera, renderer, particles;
@@ -49,11 +50,13 @@ function showPage(pageId) {
     // Detach all global listeners when switching pages
     document.removeEventListener('keydown', continuousKeydownHandler);
     document.removeEventListener('keyup', continuousKeyupHandler);
+    document.removeEventListener('mousemove', continuousMouseMoveHandler);
     if (pageId === 'verify-page') {
         resetConfidence();
         // Attach listeners for continuous authentication
         document.addEventListener('keydown', continuousKeydownHandler);
         document.addEventListener('keyup', continuousKeyupHandler);
+        document.addEventListener('mousemove', continuousMouseMoveHandler);
     }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
@@ -77,6 +80,9 @@ function updateConfidenceUI() {
 }
 function resetConfidence() {
     confidenceScore = 0;
+    lastKeyTime = 0;
+    keydownTime = 0;
+    lastMousePoint = { x: 0, y: 0, time: 0 };
     updateConfidenceUI();
     updateVerifyStatus('Awaiting user behavior...');
 }
@@ -109,7 +115,7 @@ async function performVerification() {
     updateVerifyStatus('Finalizing verification...');
     const passphrase = verifyPassphraseInput.value;
     const storedSignatureJSON = localStorage.getItem(SIGNATURE_KEY);
-    if (!storedSignatureJSON) { // Should not happen if button is enabled, but good practice
+    if (!storedSignatureJSON) {
         resetConfidence();
         return;
     }
@@ -153,14 +159,9 @@ function handleGoToEnroll() {
 }
 // --- Continuous Authentication Handlers ---
 const continuousKeydownHandler = (e) => {
-    // We don't want to measure typing in the main passphrase box as behavior
-    if (e.target === verifyPassphraseInput)
-        return;
     keydownTime = Date.now();
 };
 const continuousKeyupHandler = (e) => {
-    if (e.target === verifyPassphraseInput)
-        return;
     const storedSignature = JSON.parse(localStorage.getItem(SIGNATURE_KEY) || '{}');
     if (!storedSignature.vector || keydownTime === 0)
         return;
@@ -174,6 +175,21 @@ const continuousKeyupHandler = (e) => {
     }
     lastKeyTime = Date.now();
     updateConfidenceUI();
+};
+const continuousMouseMoveHandler = (e) => {
+    const now = Date.now();
+    if (lastMousePoint.time === 0) {
+        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
+        return;
+    }
+    const timeDelta = now - lastMousePoint.time;
+    if (timeDelta > 50) { // Sample every 50ms
+        // For this simulation, we'll just add a small amount of confidence for any movement
+        // A real system would compare velocity/acceleration to an enrolled pattern
+        confidenceScore += SCORE_INCREASE / 2; // Increase score slowly on mouse move
+        updateConfidenceUI();
+        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
+    }
 };
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -213,6 +229,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Reset on new typing session
         if (enrollMetrics.delays.length > 10) {
             enrollMetrics = { delays: [], durations: [] };
+            lastKeyTime = 0;
         }
     });
     enrollPassphraseInput.addEventListener('keyup', () => {
