@@ -16,7 +16,7 @@ const similarityBar = document.getElementById('similarity-bar');
 const similarityText = document.getElementById('similarity-text');
 // --- State ---
 const SIGNATURE_KEY = 'behavioral_profile';
-const SIMILARITY_THRESHOLD = 70;
+const SIMILARITY_THRESHOLD = 70; // User must have a 70% pattern match
 const ENROLLMENT_SAMPLE_SIZE = 15;
 const VERIFY_SAMPLE_SIZE = 15;
 let wasmInitialized = false;
@@ -47,12 +47,13 @@ function calculateStats(arr) {
     return { avg, std };
 }
 function showPage(pageId) {
-    // Detach all global listeners when switching pages
     document.removeEventListener('keyup', continuousKeyupHandler);
     enrollPassphraseInput.removeEventListener('keyup', enrollmentKeyupHandler);
+    enrollPassphraseInput.removeEventListener('keydown', () => { keydownTime = Date.now(); });
     if (pageId === 'verify-page') {
         resetSimilarity();
         document.addEventListener('keyup', continuousKeyupHandler);
+        document.addEventListener('keydown', () => { keydownTime = Date.now(); });
     }
     else {
         enrollButton.disabled = true;
@@ -60,6 +61,15 @@ function showPage(pageId) {
         recentDelays = [];
         recentDurations = [];
         enrollPassphraseInput.addEventListener('keyup', enrollmentKeyupHandler);
+        enrollPassphraseInput.addEventListener('keydown', () => {
+            keydownTime = Date.now();
+            // Reset if user starts typing again
+            if (enrollPassphraseInput.value.length < 2) {
+                recentDelays = [];
+                recentDurations = [];
+                lastKeyTime = 0;
+            }
+        });
     }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
@@ -95,6 +105,10 @@ async function handleEnrollment() {
         delay: calculateStats(recentDelays),
         duration: calculateStats(recentDurations),
     };
+    if (pattern.delay.avg === 0 || pattern.duration.avg === 0) {
+        enrollStatus.textContent = 'Could not capture a clear pattern. Please type the full phrase.';
+        return;
+    }
     enrollStatus.textContent = 'Generating profile hash...';
     const hash = await hashString(passphrase);
     localStorage.setItem(SIGNATURE_KEY, JSON.stringify({ hash, pattern }));
@@ -189,11 +203,13 @@ const continuousKeyupHandler = (e) => {
         delay: calculateStats(recentDelays),
         duration: calculateStats(recentDurations),
     };
-    const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / storedProfile.pattern.delay.avg) * 150);
-    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / (storedProfile.pattern.delay.std || 1)) * 100);
-    const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / storedProfile.pattern.duration.avg) * 150);
-    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / (storedProfile.pattern.duration.std || 1)) * 100);
-    similarityScore = (delayAvgSimilarity * 0.4) + (delayStdSimilarity * 0.1) + (durationAvgSimilarity * 0.4) + (durationStdSimilarity * 0.1);
+    // More forgiving similarity calculation
+    const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / (storedProfile.pattern.delay.avg || 1)) * 100);
+    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / (storedProfile.pattern.delay.std || 1)) * 50); // Less penalty for std dev
+    const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / (storedProfile.pattern.duration.avg || 1)) * 100);
+    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / (storedProfile.pattern.duration.std || 1)) * 50); // Less penalty for std dev
+    // Weighted average, giving more weight to the averages than the consistency
+    similarityScore = (delayAvgSimilarity * 0.5) + (delayStdSimilarity * 0.05) + (durationAvgSimilarity * 0.4) + (durationStdSimilarity * 0.05);
     updateSimilarityUI();
 };
 // --- Entry Point ---
@@ -229,7 +245,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animate();
     // Attach event listeners
-    enrollPassphraseInput.addEventListener('keydown', () => { keydownTime = Date.now(); });
     enrollButton.addEventListener('click', handleEnrollment);
     verifyButton.addEventListener('click', performVerification);
     goToVerifyButton.addEventListener('click', () => showPage('verify-page'));
