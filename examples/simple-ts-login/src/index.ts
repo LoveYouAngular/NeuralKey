@@ -21,8 +21,8 @@ const similarityText = document.getElementById('similarity-text') as HTMLDivElem
 // --- State ---
 const SIGNATURE_KEY = 'behavioral_profile';
 const SIMILARITY_THRESHOLD = 70;
-const MAX_SIMILARITY = 100;
-const SAMPLE_SIZE = 15;
+const ENROLLMENT_SAMPLE_SIZE = 15;
+const VERIFY_SAMPLE_SIZE = 15;
 
 let wasmInitialized = false;
 let scriptLoadPromise: Promise<void> | null = null;
@@ -58,12 +58,19 @@ function calculateStats(arr: number[]): { avg: number, std: number } {
 }
 
 function showPage(pageId: 'enroll-page' | 'verify-page') {
+    // Detach all global listeners when switching pages
     document.removeEventListener('keyup', continuousKeyupHandler);
-    document.removeEventListener('keydown', continuousKeydownHandler);
+    enrollPassphraseInput.removeEventListener('keyup', enrollmentKeyupHandler);
+
     if (pageId === 'verify-page') {
         resetSimilarity();
         document.addEventListener('keyup', continuousKeyupHandler);
-        document.addEventListener('keydown', continuousKeydownHandler);
+    } else {
+        enrollButton.disabled = true;
+        enrollStatus.textContent = '';
+        recentDelays = [];
+        recentDurations = [];
+        enrollPassphraseInput.addEventListener('keyup', enrollmentKeyupHandler);
     }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
@@ -75,7 +82,7 @@ function updateVerifyStatus(message: string) {
 }
 
 function updateSimilarityUI() {
-    similarityScore = Math.max(0, Math.min(MAX_SIMILARITY, similarityScore));
+    similarityScore = Math.max(0, Math.min(100, similarityScore));
     similarityBar.style.width = `${similarityScore}%`;
     similarityText.textContent = `Similarity: ${similarityScore.toFixed(0)}%`;
 
@@ -99,20 +106,10 @@ function resetSimilarity() {
 
 async function handleEnrollment() {
     const passphrase = enrollPassphraseInput.value;
-    if (passphrase.length < 8) {
-        enrollStatus.textContent = 'Passphrase must be at least 8 characters.';
-        return;
-    }
-    
     const pattern = {
         delay: calculateStats(recentDelays),
         duration: calculateStats(recentDurations),
     };
-
-    if (pattern.delay.avg === 0 || pattern.duration.avg === 0) {
-        enrollStatus.textContent = 'Could not capture a clear pattern. Please type the full phrase.';
-        return;
-    }
 
     enrollStatus.textContent = 'Generating profile hash...';
     const hash = await hashString(passphrase);
@@ -120,13 +117,7 @@ async function handleEnrollment() {
     localStorage.setItem(SIGNATURE_KEY, JSON.stringify({ hash, pattern }));
     
     enrollStatus.textContent = 'Enrollment Successful!';
-    recentDelays = [];
-    recentDurations = [];
-
-    setTimeout(() => {
-        showPage('verify-page');
-        verifyPassphraseInput.value = '';
-    }, 1000);
+    setTimeout(() => showPage('verify-page'), 1000);
 }
 
 async function performVerification() {
@@ -176,13 +167,26 @@ async function performVerification() {
 function handleGoToEnroll() {
     localStorage.removeItem(SIGNATURE_KEY);
     enrollPassphraseInput.value = '';
-    enrollStatus.textContent = '';
     showPage('enroll-page');
 }
 
 // --- Event Handlers ---
-const continuousKeydownHandler = (e: KeyboardEvent) => {
-    keydownTime = Date.now();
+const enrollmentKeyupHandler = () => {
+    if (keydownTime !== 0) {
+        const now = Date.now();
+        recentDurations.push(now - keydownTime);
+        if (lastKeyTime !== 0) {
+            recentDelays.push(now - lastKeyTime);
+        }
+        lastKeyTime = now;
+
+        if (recentDelays.length >= ENROLLMENT_SAMPLE_SIZE) {
+            enrollButton.disabled = false;
+            enrollStatus.textContent = 'Pattern detected. Ready to enroll.';
+        } else {
+            enrollStatus.textContent = `Capturing pattern... ${recentDelays.length}/${ENROLLMENT_SAMPLE_SIZE}`;
+        }
+    }
 };
 
 const continuousKeyupHandler = (e: KeyboardEvent) => {
@@ -190,12 +194,12 @@ const continuousKeyupHandler = (e: KeyboardEvent) => {
     if (keydownTime !== 0) {
         const duration = now - keydownTime;
         recentDurations.push(duration);
-        if (recentDurations.length > SAMPLE_SIZE) recentDurations.shift();
+        if (recentDurations.length > VERIFY_SAMPLE_SIZE) recentDurations.shift();
     }
     if (lastKeyTime !== 0) {
         const delay = now - lastKeyTime;
         recentDelays.push(delay);
-        if (recentDelays.length > SAMPLE_SIZE) recentDelays.shift();
+        if (recentDelays.length > VERIFY_SAMPLE_SIZE) recentDelays.shift();
     }
     lastKeyTime = now;
 
@@ -210,32 +214,13 @@ const continuousKeyupHandler = (e: KeyboardEvent) => {
     };
 
     const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / storedProfile.pattern.delay.avg) * 150);
-    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / storedProfile.pattern.delay.std) * 100);
+    const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / (storedProfile.pattern.delay.std || 1)) * 100);
     const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / storedProfile.pattern.duration.avg) * 150);
-    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / storedProfile.pattern.duration.std) * 100);
+    const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / (storedProfile.pattern.duration.std || 1)) * 100);
 
     similarityScore = (delayAvgSimilarity * 0.4) + (delayStdSimilarity * 0.1) + (durationAvgSimilarity * 0.4) + (durationStdSimilarity * 0.1);
 
     updateSimilarityUI();
-};
-
-const enrollmentKeydownHandler = () => {
-    keydownTime = Date.now();
-    // Reset if user starts typing again
-    recentDelays = [];
-    recentDurations = [];
-    lastKeyTime = 0;
-};
-
-const enrollmentKeyupHandler = () => {
-    if (keydownTime !== 0) {
-        const now = Date.now();
-        recentDurations.push(now - keydownTime);
-        if (lastKeyTime !== 0) {
-            recentDelays.push(now - lastKeyTime);
-        }
-        lastKeyTime = now;
-    }
 };
 
 // --- Entry Point ---
@@ -272,8 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
     animate();
 
     // Attach event listeners
-    enrollPassphraseInput.addEventListener('keydown', enrollmentKeydownHandler);
-    enrollPassphraseInput.addEventListener('keyup', enrollmentKeyupHandler);
+    enrollPassphraseInput.addEventListener('keydown', () => { keydownTime = Date.now(); });
     enrollButton.addEventListener('click', handleEnrollment);
     verifyButton.addEventListener('click', performVerification);
     goToVerifyButton.addEventListener('click', () => showPage('verify-page'));
