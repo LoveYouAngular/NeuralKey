@@ -16,9 +16,9 @@ const similarityBar = document.getElementById('similarity-bar');
 const similarityText = document.getElementById('similarity-text');
 // --- State ---
 const SIGNATURE_KEY = 'behavioral_profile';
-const SIMILARITY_THRESHOLD = 70; // User must have a 70% pattern match
+const SIMILARITY_THRESHOLD = 70;
 const MAX_SIMILARITY = 100;
-const SAMPLE_SIZE = 15; // Analyze the last 15 keystrokes
+const SAMPLE_SIZE = 15;
 let wasmInitialized = false;
 let scriptLoadPromise = null;
 let similarityScore = 0;
@@ -39,11 +39,8 @@ async function hashString(str) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-/**
- * Calculates the average and standard deviation of an array.
- */
 function calculateStats(arr) {
-    if (arr.length === 0)
+    if (arr.length < 2)
         return { avg: 0, std: 0 };
     const avg = arr.reduce((a, b) => a + b, 0) / arr.length;
     const std = Math.sqrt(arr.map(x => Math.pow(x - avg, 2)).reduce((a, b) => a + b, 0) / arr.length);
@@ -51,9 +48,11 @@ function calculateStats(arr) {
 }
 function showPage(pageId) {
     document.removeEventListener('keyup', continuousKeyupHandler);
+    document.removeEventListener('keydown', continuousKeydownHandler);
     if (pageId === 'verify-page') {
         resetSimilarity();
         document.addEventListener('keyup', continuousKeyupHandler);
+        document.addEventListener('keydown', continuousKeydownHandler);
     }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
@@ -89,13 +88,12 @@ async function handleEnrollment() {
         enrollStatus.textContent = 'Passphrase must be at least 8 characters.';
         return;
     }
-    // Use the currently typed data for enrollment
     const pattern = {
         delay: calculateStats(recentDelays),
         duration: calculateStats(recentDurations),
     };
     if (pattern.delay.avg === 0 || pattern.duration.avg === 0) {
-        enrollStatus.textContent = 'Could not capture a clear pattern. Please type the phrase again.';
+        enrollStatus.textContent = 'Could not capture a clear pattern. Please type the full phrase.';
         return;
     }
     enrollStatus.textContent = 'Generating profile hash...';
@@ -156,7 +154,10 @@ function handleGoToEnroll() {
     enrollStatus.textContent = '';
     showPage('enroll-page');
 }
-// --- Continuous Authentication Handler ---
+// --- Event Handlers ---
+const continuousKeydownHandler = (e) => {
+    keydownTime = Date.now();
+};
 const continuousKeyupHandler = (e) => {
     const now = Date.now();
     if (keydownTime !== 0) {
@@ -172,25 +173,38 @@ const continuousKeyupHandler = (e) => {
             recentDelays.shift();
     }
     lastKeyTime = now;
-    // Don't start scoring until we have a decent sample size
     if (recentDelays.length < 5)
         return;
     const storedProfile = JSON.parse(localStorage.getItem(SIGNATURE_KEY) || '{}');
-    if (!storedProfile.pattern)
+    if (!storedProfile.pattern || !storedProfile.pattern.delay || !storedProfile.pattern.duration)
         return;
     const currentStats = {
         delay: calculateStats(recentDelays),
         duration: calculateStats(recentDurations),
     };
-    // Calculate similarity for each metric (0-100 scale)
-    // 100% if perfect match, decreases as the difference grows
-    const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / storedProfile.pattern.delay.avg) * 100);
+    const delayAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.avg - currentStats.delay.avg) / storedProfile.pattern.delay.avg) * 150);
     const delayStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.delay.std - currentStats.delay.std) / storedProfile.pattern.delay.std) * 100);
-    const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / storedProfile.pattern.duration.avg) * 100);
+    const durationAvgSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.avg - currentStats.duration.avg) / storedProfile.pattern.duration.avg) * 150);
     const durationStdSimilarity = Math.max(0, 100 - (Math.abs(storedProfile.pattern.duration.std - currentStats.duration.std) / storedProfile.pattern.duration.std) * 100);
-    // Weighted average of similarities
     similarityScore = (delayAvgSimilarity * 0.4) + (delayStdSimilarity * 0.1) + (durationAvgSimilarity * 0.4) + (durationStdSimilarity * 0.1);
     updateSimilarityUI();
+};
+const enrollmentKeydownHandler = () => {
+    keydownTime = Date.now();
+    // Reset if user starts typing again
+    recentDelays = [];
+    recentDurations = [];
+    lastKeyTime = 0;
+};
+const enrollmentKeyupHandler = () => {
+    if (keydownTime !== 0) {
+        const now = Date.now();
+        recentDurations.push(now - keydownTime);
+        if (lastKeyTime !== 0) {
+            recentDelays.push(now - lastKeyTime);
+        }
+        lastKeyTime = now;
+    }
 };
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -224,18 +238,9 @@ document.addEventListener('DOMContentLoaded', () => {
         renderer.render(scene, camera);
     }
     animate();
-    // Attach event listeners for enrollment typing
-    enrollPassphraseInput.addEventListener('keydown', () => { keydownTime = Date.now(); });
-    enrollPassphraseInput.addEventListener('keyup', () => {
-        if (keydownTime !== 0) {
-            recentDurations.push(Date.now() - keydownTime);
-            if (lastKeyTime !== 0) {
-                recentDelays.push(Date.now() - lastKeyTime);
-            }
-            lastKeyTime = Date.now();
-        }
-    });
-    // Attach navigation/action buttons
+    // Attach event listeners
+    enrollPassphraseInput.addEventListener('keydown', enrollmentKeydownHandler);
+    enrollPassphraseInput.addEventListener('keyup', enrollmentKeyupHandler);
     enrollButton.addEventListener('click', handleEnrollment);
     verifyButton.addEventListener('click', performVerification);
     goToVerifyButton.addEventListener('click', () => showPage('verify-page'));
