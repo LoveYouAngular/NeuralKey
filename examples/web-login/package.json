@@ -6,8 +6,7 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test",
-    "prebuild": "cp ../../packages/zkp-prover/pkg/zkp_prover.js public/zkp_prover.js && cp ../../packages/zkp-prover/pkg/zkp_prover_bg.wasm public/zkp_prover_bg.wasm"
+    "test": "ng test"
   },
   "prettier": {
     "overrides": [
