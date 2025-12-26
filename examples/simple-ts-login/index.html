@@ -92,6 +92,14 @@
             color: var(--bg-color);
         }
         
+        .button:disabled {
+            border-color: var(--text-color-dark);
+            color: var(--text-color-dark);
+            background: transparent;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
         .text-input {
             background: rgba(0,0,0,0.2);
             border: 1px solid var(--glass-border);
@@ -137,6 +145,28 @@
         .sub-button:hover {
             color: var(--glow-color);
         }
+        
+        .confidence-meter {
+            width: 100%;
+            background-color: rgba(0,0,0,0.2);
+            border-radius: 4px;
+            margin-top: 20px;
+            border: 1px solid var(--glass-border);
+        }
+        
+        #confidence-bar {
+            width: 0%;
+            height: 10px;
+            background-color: var(--glow-color);
+            border-radius: 4px;
+            transition: width 0.5s ease-out;
+        }
+        
+        #confidence-text {
+            font-size: 12px;
+            margin-top: 5px;
+            color: var(--text-color-dark);
+        }
     </style>
 </head>
 <body>
@@ -158,9 +188,16 @@
     <div id="verify-page" class="page">
         <div class="card">
             <h1>Behavioral Verification</h1>
-            <p>Re-enter your passphrase. The system will verify both the secret and your unique "Typing DNA" to confirm your identity.</p>
-            <input type="password" id="verifyPassphrase" class="text-input" placeholder="Enter secret passphrase...">
-            <button id="verifyButton" class="button">Initiate Proof Sequence</button>
+            <p>Interact with the page naturally. The system will passively analyze your behavior to build a confidence score before enabling proof generation.</p>
+            
+            <div class="confidence-meter">
+                <div id="confidence-bar"></div>
+            </div>
+            <div id="confidence-text">Confidence: 0%</div>
+            
+            <input type="password" id="verifyPassphrase" class="text-input" placeholder="Enter secret passphrase to finalize...">
+            <button id="verifyButton" class="button" disabled>Initiate Proof Sequence</button>
+            
             <div id="status-container">
                 <div id="status-text">Awaiting verification...</div>
             </div>

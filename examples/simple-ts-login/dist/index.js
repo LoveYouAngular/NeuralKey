@@ -12,28 +12,27 @@ const verifyPassphraseInput = document.getElementById('verifyPassphrase');
 const verifyButton = document.getElementById('verifyButton');
 const statusText = document.getElementById('status-text');
 const goToEnrollButton = document.getElementById('goToEnrollButton');
+const confidenceBar = document.getElementById('confidence-bar');
+const confidenceText = document.getElementById('confidence-text');
 // --- State ---
 const SIGNATURE_KEY = 'behavioral_signature_vector';
-const TOLERANCE = {
-    typingDelay: 40, // ms
-    keyDuration: 25, // ms
-    mouseVelocity: 150 // pixels/sec
-};
+const CONFIDENCE_THRESHOLD = 75;
+const MAX_CONFIDENCE = 100;
+const SCORE_INCREASE = 2;
+const SCORE_DECREASE = 1;
+const TOLERANCE = { typingDelay: 50, keyDuration: 30 };
 let wasmInitialized = false;
 let scriptLoadPromise = null;
-// Data collection objects with explicit types
-let enrollMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
-let verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
+let confidenceScore = 0;
+// Data collection state
 let keydownTime = 0;
-let lastMousePoint = { x: 0, y: 0, time: 0 };
-// --- 3D Scene (Omitted for brevity, same as before) ---
+let lastKeyTime = 0;
+let enrollMetrics = { delays: [], durations: [] };
+// --- 3D Scene (Omitted for brevity) ---
 let scene, camera, renderer, particles;
 function init3DBackground() { }
 function animate() { }
 // --- Core Logic ---
-/**
- * Hashes a string using the SHA-256 algorithm.
- */
 async function hashString(str) {
     const encoder = new TextEncoder();
     const data = encoder.encode(str);
@@ -41,26 +40,21 @@ async function hashString(str) {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
-/**
- * Calculates the average of an array of numbers.
- */
 function calculateAverage(arr) {
     if (arr.length === 0)
         return 0;
-    const sum = arr.reduce((a, b) => a + b, 0);
-    return sum / arr.length;
-}
-/**
- * Calculates the behavioral vector from collected metrics.
- */
-function calculateBehavioralVector(metrics) {
-    return {
-        typingDelay: calculateAverage(metrics.delays),
-        keyDuration: calculateAverage(metrics.durations),
-        mouseVelocity: calculateAverage(metrics.velocities)
-    };
+    return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
 function showPage(pageId) {
+    // Detach all global listeners when switching pages
+    document.removeEventListener('keydown', continuousKeydownHandler);
+    document.removeEventListener('keyup', continuousKeyupHandler);
+    if (pageId === 'verify-page') {
+        resetConfidence();
+        // Attach listeners for continuous authentication
+        document.addEventListener('keydown', continuousKeydownHandler);
+        document.addEventListener('keyup', continuousKeyupHandler);
+    }
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
     });
@@ -68,81 +62,65 @@ function showPage(pageId) {
 function updateVerifyStatus(message) {
     statusText.textContent = message;
 }
-/**
- * Handles the enrollment process.
- */
+function updateConfidenceUI() {
+    confidenceScore = Math.max(0, Math.min(MAX_CONFIDENCE, confidenceScore));
+    confidenceBar.style.width = `${confidenceScore}%`;
+    confidenceText.textContent = `Confidence: ${confidenceScore.toFixed(0)}%`;
+    if (confidenceScore >= CONFIDENCE_THRESHOLD) {
+        verifyButton.disabled = false;
+        confidenceBar.style.backgroundColor = 'var(--glow-color)';
+    }
+    else {
+        verifyButton.disabled = true;
+        confidenceBar.style.backgroundColor = 'var(--error-color)';
+    }
+}
+function resetConfidence() {
+    confidenceScore = 0;
+    updateConfidenceUI();
+    updateVerifyStatus('Awaiting user behavior...');
+}
 async function handleEnrollment() {
     const passphrase = enrollPassphraseInput.value;
     if (passphrase.length < 8) {
         enrollStatus.textContent = 'Passphrase must be at least 8 characters.';
         return;
     }
-    const vector = calculateBehavioralVector(enrollMetrics);
+    const vector = {
+        typingDelay: calculateAverage(enrollMetrics.delays),
+        keyDuration: calculateAverage(enrollMetrics.durations),
+    };
     if (vector.typingDelay === 0 || vector.keyDuration === 0) {
-        enrollStatus.textContent = 'Please type the phrase naturally to capture your rhythm.';
+        enrollStatus.textContent = 'Could not capture a clear pattern. Please type the phrase again.';
         return;
     }
     enrollStatus.textContent = 'Generating signature hash...';
     const hash = await hashString(passphrase);
-    const signature = { hash, vector };
-    localStorage.setItem(SIGNATURE_KEY, JSON.stringify(signature));
+    localStorage.setItem(SIGNATURE_KEY, JSON.stringify({ hash, vector }));
     enrollStatus.textContent = 'Enrollment Successful!';
-    enrollMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 }; // Reset metrics
+    enrollMetrics = { delays: [], durations: [] }; // Reset metrics
     setTimeout(() => {
         showPage('verify-page');
         verifyPassphraseInput.value = '';
-        updateVerifyStatus('Ready for verification.');
     }, 1000);
 }
-/**
- * Handles the verification and ZKP generation process.
- */
 async function performVerification() {
-    const passphrase = verifyPassphraseInput.value;
-    if (!passphrase) {
-        updateVerifyStatus('Please enter your passphrase to verify.');
-        return;
-    }
     verifyButton.disabled = true;
-    updateVerifyStatus('Analyzing signature...');
+    updateVerifyStatus('Finalizing verification...');
+    const passphrase = verifyPassphraseInput.value;
     const storedSignatureJSON = localStorage.getItem(SIGNATURE_KEY);
-    if (!storedSignatureJSON) {
-        updateVerifyStatus('No signature enrolled. Please enroll first.');
-        verifyButton.disabled = false;
+    if (!storedSignatureJSON) { // Should not happen if button is enabled, but good practice
+        resetConfidence();
         return;
     }
     const storedSignature = JSON.parse(storedSignatureJSON);
     const currentHash = await hashString(passphrase);
     if (currentHash !== storedSignature.hash) {
-        updateVerifyStatus('Recognition Failed: Passphrase is incorrect.');
-        verifyButton.disabled = false;
-        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
+        updateVerifyStatus('Final Check Failed: Passphrase is incorrect.');
+        resetConfidence();
         return;
     }
-    updateVerifyStatus('Passphrase correct. Verifying behavioral pattern...');
-    const currentVector = calculateBehavioralVector(verifyMetrics);
-    const delayDiff = Math.abs(currentVector.typingDelay - storedSignature.vector.typingDelay);
-    const durationDiff = Math.abs(currentVector.keyDuration - storedSignature.vector.keyDuration);
-    const velocityDiff = Math.abs(currentVector.mouseVelocity - storedSignature.vector.mouseVelocity);
-    if (delayDiff > TOLERANCE.typingDelay) {
-        updateVerifyStatus(`Recognition Failed: Typing rhythm anomaly. (Delta: ${delayDiff.toFixed(0)}ms)`);
-        verifyButton.disabled = false;
-        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
-        return;
-    }
-    if (durationDiff > TOLERANCE.keyDuration) {
-        updateVerifyStatus(`Recognition Failed: Key press duration anomaly. (Delta: ${durationDiff.toFixed(0)}ms)`);
-        verifyButton.disabled = false;
-        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
-        return;
-    }
-    if (storedSignature.vector.mouseVelocity > 0 && velocityDiff > TOLERANCE.mouseVelocity) {
-        updateVerifyStatus(`Recognition Failed: Mouse movement anomaly. (Delta: ${velocityDiff.toFixed(0)}px/s)`);
-        verifyButton.disabled = false;
-        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
-        return;
-    }
-    updateVerifyStatus('Behavioral pattern matched. Initializing module...');
+    updateVerifyStatus('Passphrase correct. Generating proof...');
     try {
         if (!scriptLoadPromise) {
             scriptLoadPromise = new Promise((resolve, reject) => {
@@ -159,19 +137,12 @@ async function performVerification() {
             await wasm_bindgen('assets/zkp_prover_bg.wasm');
             wasmInitialized = true;
         }
-        updateVerifyStatus('Generating proof...');
         const encoder = new TextEncoder();
-        const privateInput = encoder.encode(passphrase);
-        const publicInput = encoder.encode(`challenge_${Date.now()}`);
-        const proof = wasm_bindgen.generate_zkp(privateInput, publicInput);
+        const proof = wasm_bindgen.generate_zkp(encoder.encode(passphrase), encoder.encode(`challenge_${Date.now()}`));
         updateVerifyStatus(`Proof Generated: [${proof.slice(0, 40)}...]`);
     }
     catch (error) {
         updateVerifyStatus(`Error: ${error.message}`);
-    }
-    finally {
-        verifyButton.disabled = false;
-        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
     }
 }
 function handleGoToEnroll() {
@@ -180,47 +151,29 @@ function handleGoToEnroll() {
     enrollStatus.textContent = '';
     showPage('enroll-page');
 }
-// --- Event Listeners for Data Collection ---
-const mouseMoveHandler = (e) => {
-    const now = Date.now();
-    if (lastMousePoint.time === 0) {
-        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
+// --- Continuous Authentication Handlers ---
+const continuousKeydownHandler = (e) => {
+    // We don't want to measure typing in the main passphrase box as behavior
+    if (e.target === verifyPassphraseInput)
         return;
-    }
-    const timeDelta = now - lastMousePoint.time;
-    if (timeDelta > 20) {
-        const dx = e.clientX - lastMousePoint.x;
-        const dy = e.clientY - lastMousePoint.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const velocity = distance / (timeDelta / 1000);
-        const currentMetrics = enrollPage.style.display === 'block' ? enrollMetrics : verifyMetrics;
-        currentMetrics.velocities.push(velocity);
-        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
-    }
-};
-const keydownHandler = (e) => {
-    const currentMetrics = e.target === enrollPassphraseInput ? enrollMetrics : verifyMetrics;
-    // Reset metrics on the first keypress of a new attempt
-    if (currentMetrics.durations.length === 0 && currentMetrics.delays.length === 0) {
-        currentMetrics.velocities = [];
-        lastMousePoint = { x: 0, y: 0, time: 0 };
-        document.addEventListener('mousemove', mouseMoveHandler);
-    }
     keydownTime = Date.now();
 };
-const keyupHandler = (e) => {
-    const currentMetrics = e.target === enrollPassphraseInput ? enrollMetrics : verifyMetrics;
-    if (keydownTime !== 0) {
-        const now = Date.now();
-        const duration = now - keydownTime;
-        currentMetrics.durations.push(duration);
-        if (currentMetrics.lastKeyTime !== 0) {
-            const delay = now - currentMetrics.lastKeyTime;
-            currentMetrics.delays.push(delay);
-        }
-        currentMetrics.lastKeyTime = now;
+const continuousKeyupHandler = (e) => {
+    if (e.target === verifyPassphraseInput)
+        return;
+    const storedSignature = JSON.parse(localStorage.getItem(SIGNATURE_KEY) || '{}');
+    if (!storedSignature.vector || keydownTime === 0)
+        return;
+    const duration = Date.now() - keydownTime;
+    const durationDiff = Math.abs(duration - storedSignature.vector.keyDuration);
+    confidenceScore += (durationDiff < TOLERANCE.keyDuration) ? SCORE_INCREASE : -SCORE_DECREASE;
+    if (lastKeyTime !== 0) {
+        const delay = Date.now() - lastKeyTime;
+        const delayDiff = Math.abs(delay - storedSignature.vector.typingDelay);
+        confidenceScore += (delayDiff < TOLERANCE.typingDelay) ? SCORE_INCREASE : -SCORE_DECREASE;
     }
-    keydownTime = 0;
+    lastKeyTime = Date.now();
+    updateConfidenceUI();
 };
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -254,21 +207,28 @@ document.addEventListener('DOMContentLoaded', () => {
         renderer.render(scene, camera);
     }
     animate();
-    // Attach event listeners
-    enrollButton.addEventListener('click', () => {
-        document.removeEventListener('mousemove', mouseMoveHandler);
-        handleEnrollment();
+    // Attach event listeners for enrollment typing
+    enrollPassphraseInput.addEventListener('keydown', () => {
+        keydownTime = Date.now();
+        // Reset on new typing session
+        if (enrollMetrics.delays.length > 10) {
+            enrollMetrics = { delays: [], durations: [] };
+        }
     });
-    verifyButton.addEventListener('click', () => {
-        document.removeEventListener('mousemove', mouseMoveHandler);
-        performVerification();
+    enrollPassphraseInput.addEventListener('keyup', () => {
+        if (keydownTime !== 0) {
+            enrollMetrics.durations.push(Date.now() - keydownTime);
+            if (lastKeyTime !== 0) {
+                enrollMetrics.delays.push(Date.now() - lastKeyTime);
+            }
+            lastKeyTime = Date.now();
+        }
     });
+    // Attach navigation/action buttons
+    enrollButton.addEventListener('click', handleEnrollment);
+    verifyButton.addEventListener('click', performVerification);
     goToVerifyButton.addEventListener('click', () => showPage('verify-page'));
     goToEnrollButton.addEventListener('click', handleGoToEnroll);
-    enrollPassphraseInput.addEventListener('keydown', keydownHandler);
-    enrollPassphraseInput.addEventListener('keyup', keyupHandler);
-    verifyPassphraseInput.addEventListener('keydown', keydownHandler);
-    verifyPassphraseInput.addEventListener('keyup', keyupHandler);
     // Initial page load logic
     if (localStorage.getItem(SIGNATURE_KEY)) {
         showPage('verify-page');
