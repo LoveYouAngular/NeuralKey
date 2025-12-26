@@ -69,6 +69,7 @@
             color: var(--text-color-dark);
             margin-bottom: 30px;
             font-size: 14px;
+            line-height: 1.6;
         }
 
         .button {
@@ -121,6 +122,7 @@
             font-size: 14px;
             text-align: center;
             width: 100%;
+            line-height: 1.6;
         }
         
         .sub-button {
@@ -143,8 +145,8 @@
     <!-- ENROLLMENT PAGE -->
     <div id="enroll-page" class="page">
         <div class="card">
-            <h1>Enroll Signature</h1>
-            <p>To simulate behavioral recognition, enter a secret passphrase. This will be hashed and stored locally to represent your unique signature.</p>
+            <h1>Behavioral Enrollment</h1>
+            <p>Enter a secret passphrase. The system will analyze not just the phrase, but the unique rhythm and cadence of your typing to create a "Typing DNA" signature.</p>
             <input type="password" id="enrollPassphrase" class="text-input" placeholder="Enter secret passphrase...">
             <button id="enrollButton" class="button">Enroll Signature</button>
             <div id="enroll-status" class="status-text"></div>
@@ -155,14 +157,14 @@
     <!-- VERIFICATION PAGE -->
     <div id="verify-page" class="page">
         <div class="card">
-            <h1>Verify Signature</h1>
-            <p>Re-enter your secret passphrase to generate a Zero-Knowledge Proof and verify your identity.</p>
+            <h1>Behavioral Verification</h1>
+            <p>Re-enter your passphrase. The system will verify both the secret and your unique "Typing DNA" to confirm your identity.</p>
             <input type="password" id="verifyPassphrase" class="text-input" placeholder="Enter secret passphrase...">
             <button id="verifyButton" class="button">Initiate Proof Sequence</button>
             <div id="status-container">
                 <div id="status-text">Awaiting verification...</div>
             </div>
-            <button id="goToEnrollButton" class="sub-button">Need to enroll a new signature?</button>
+            <button id="goToEnrollButton" class="sub-button">Enroll a new signature</button>
         </div>
     </div>
 

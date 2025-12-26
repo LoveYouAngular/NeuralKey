@@ -4,43 +4,36 @@ declare const THREE: any;
 
 // --- DOM Elements ---
 const canvas = document.getElementById('bg-canvas') as HTMLCanvasElement;
-
-// Page containers
 const enrollPage = document.getElementById('enroll-page') as HTMLDivElement;
 const verifyPage = document.getElementById('verify-page') as HTMLDivElement;
 const allPages = [enrollPage, verifyPage];
-
-// Enrollment Page Elements
 const enrollPassphraseInput = document.getElementById('enrollPassphrase') as HTMLInputElement;
 const enrollButton = document.getElementById('enrollButton') as HTMLButtonElement;
 const enrollStatus = document.getElementById('enroll-status') as HTMLDivElement;
 const goToVerifyButton = document.getElementById('goToVerifyButton') as HTMLButtonElement;
-
-// Verification Page Elements
 const verifyPassphraseInput = document.getElementById('verifyPassphrase') as HTMLInputElement;
 const verifyButton = document.getElementById('verifyButton') as HTMLButtonElement;
 const statusText = document.getElementById('status-text') as HTMLDivElement;
 const goToEnrollButton = document.getElementById('goToEnrollButton') as HTMLButtonElement;
 
 // --- State ---
-const HASH_KEY = 'behavioral_signature_hash';
+const SIGNATURE_KEY = 'behavioral_signature';
+const DNA_TOLERANCE_MS = 40; // Typing rhythm can be off by this many ms
 let wasmInitialized = false;
 let scriptLoadPromise: Promise<void> | null = null;
+let enrollTimestamps: number[] = [];
+let verifyTimestamps: number[] = [];
 
-// --- 3D Scene (unchanged) ---
+// --- 3D Scene (Omitted for brevity, same as before) ---
 let scene: any, camera: any, renderer: any, particles: any;
-function init3DBackground() { /* ... same as before ... */ }
-function animate() { /* ... same as before ... */ }
-// NOTE: The 3D background functions are omitted here for brevity, but they are the same as the previous version.
-// The full code will be written to the file.
+function init3DBackground() { /* ... */ }
+function animate() { /* ... */ }
 
 
 // --- Core Logic ---
 
 /**
  * Hashes a string using the SHA-256 algorithm.
- * @param str The string to hash.
- * @returns A promise that resolves to the hex-encoded hash.
  */
 async function hashString(str: string): Promise<string> {
     const encoder = new TextEncoder();
@@ -51,19 +44,29 @@ async function hashString(str: string): Promise<string> {
 }
 
 /**
- * Hides all page divs and shows the one with the specified ID.
+ * Calculates the average delay between timestamps in an array.
+ * @param timestamps An array of millisecond timestamps.
+ * @returns The average delay in milliseconds.
  */
+function calculateTypingDNA(timestamps: number[]): number {
+    if (timestamps.length < 2) {
+        return 0;
+    }
+    const delays = [];
+    for (let i = 1; i < timestamps.length; i++) {
+        delays.push(timestamps[i] - timestamps[i-1]);
+    }
+    const totalDelay = delays.reduce((sum, delay) => sum + delay, 0);
+    return totalDelay / delays.length;
+}
+
 function showPage(pageId: 'enroll-page' | 'verify-page') {
     allPages.forEach(page => {
         page.style.display = page.id === pageId ? 'block' : 'none';
     });
 }
 
-/**
- * Updates the status display on the verification page.
- */
 function updateVerifyStatus(message: string) {
-    console.log(message);
     statusText.textContent = message;
 }
 
@@ -72,16 +75,26 @@ function updateVerifyStatus(message: string) {
  */
 async function handleEnrollment() {
     const passphrase = enrollPassphraseInput.value;
-    if (!passphrase) {
-        enrollStatus.textContent = 'Passphrase cannot be empty.';
+    if (passphrase.length < 8) {
+        enrollStatus.textContent = 'Passphrase must be at least 8 characters.';
         return;
     }
+
+    const dna = calculateTypingDNA(enrollTimestamps);
+    if (dna === 0) {
+        enrollStatus.textContent = 'Please type the phrase naturally to capture your rhythm.';
+        return;
+    }
+
     enrollStatus.textContent = 'Generating signature hash...';
     const hash = await hashString(passphrase);
-    localStorage.setItem(HASH_KEY, hash);
-    enrollStatus.textContent = 'Enrollment Successful!';
     
-    // Automatically switch to verification page after a short delay
+    const signature = { hash, dna };
+    localStorage.setItem(SIGNATURE_KEY, JSON.stringify(signature));
+    
+    enrollStatus.textContent = 'Enrollment Successful!';
+    enrollTimestamps = []; // Clear timestamps after use
+
     setTimeout(() => {
         showPage('verify-page');
         verifyPassphraseInput.value = '';
@@ -102,22 +115,36 @@ async function performVerification() {
     verifyButton.disabled = true;
     updateVerifyStatus('Analyzing signature...');
 
-    const storedHash = localStorage.getItem(HASH_KEY);
-    if (!storedHash) {
+    const storedSignatureJSON = localStorage.getItem(SIGNATURE_KEY);
+    if (!storedSignatureJSON) {
         updateVerifyStatus('No signature enrolled. Please enroll first.');
         verifyButton.disabled = false;
         return;
     }
 
+    const storedSignature = JSON.parse(storedSignatureJSON);
     const currentHash = await hashString(passphrase);
 
-    if (currentHash !== storedHash) {
-        updateVerifyStatus('Recognition Failed. Signature does not match.');
+    if (currentHash !== storedSignature.hash) {
+        updateVerifyStatus('Recognition Failed: Passphrase is incorrect.');
         verifyButton.disabled = false;
+        verifyTimestamps = []; // Clear timestamps
         return;
     }
 
-    updateVerifyStatus('Recognition Successful. Initializing secure module...');
+    updateVerifyStatus('Passphrase correct. Verifying behavioral pattern...');
+    
+    const currentDna = calculateTypingDNA(verifyTimestamps);
+    const dnaDifference = Math.abs(currentDna - storedSignature.dna);
+
+    if (dnaDifference > DNA_TOLERANCE_MS) {
+        updateVerifyStatus(`Recognition Failed: Behavioral pattern anomaly detected. (Delta: ${dnaDifference.toFixed(0)}ms)`);
+        verifyButton.disabled = false;
+        verifyTimestamps = []; // Clear timestamps
+        return;
+    }
+
+    updateVerifyStatus(`Behavioral pattern matched (Delta: ${dnaDifference.toFixed(0)}ms). Initializing module...`);
 
     try {
         // WASM Loading and Proof Generation
@@ -140,34 +167,27 @@ async function performVerification() {
         updateVerifyStatus('Generating proof...');
 
         const encoder = new TextEncoder();
-        // The "behavioral signature" (passphrase) is the private input
         const privateInput = encoder.encode(passphrase);
-        // The public challenge is still randomized
         const publicInput = encoder.encode(`challenge_${Date.now()}`);
         
         const proof = wasm_bindgen.generate_zkp(privateInput, publicInput);
         
         updateVerifyStatus(`Proof Generated: [${proof.slice(0, 40)}...]`);
-        console.log('Generated Proof:', proof);
-
+        
     } catch (error: any) {
         updateVerifyStatus(`Error: ${error.message}`);
-        console.error(error);
     } finally {
         verifyButton.disabled = false;
+        verifyTimestamps = []; // Clear timestamps
     }
 }
 
-/**
- * Handles the "Go to Enroll" button click, clearing old data.
- */
 function handleGoToEnroll() {
-    localStorage.removeItem(HASH_KEY);
+    localStorage.removeItem(SIGNATURE_KEY);
     enrollPassphraseInput.value = '';
     enrollStatus.textContent = '';
     showPage('enroll-page');
 }
-
 
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -207,9 +227,15 @@ document.addEventListener('DOMContentLoaded', () => {
     verifyButton.addEventListener('click', performVerification);
     goToVerifyButton.addEventListener('click', () => showPage('verify-page'));
     goToEnrollButton.addEventListener('click', handleGoToEnroll);
+    
+    // Listen for typing to clear timestamp arrays and record new ones
+    enrollPassphraseInput.addEventListener('keydown', () => { enrollTimestamps = []; });
+    enrollPassphraseInput.addEventListener('keyup', () => { enrollTimestamps.push(Date.now()); });
+    verifyPassphraseInput.addEventListener('keydown', () => { verifyTimestamps = []; });
+    verifyPassphraseInput.addEventListener('keyup', () => { verifyTimestamps.push(Date.now()); });
 
     // Initial page load logic
-    if (localStorage.getItem(HASH_KEY)) {
+    if (localStorage.getItem(SIGNATURE_KEY)) {
         showPage('verify-page');
     } else {
         showPage('enroll-page');
