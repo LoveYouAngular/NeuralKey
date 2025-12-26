@@ -1,8 +1,36 @@
+import { HDNodeWallet, Mnemonic } from 'ethers';
+
 // Declare wasm_bindgen globally for TypeScript
 declare const wasm_bindgen: any;
 
 // Flag to ensure Wasm is initialized only once
 let wasmInitialized = false;
+
+// Promise to ensure the script is loaded only once
+let scriptLoadPromise: Promise<void> | null = null;
+
+function loadWasmScript(): Promise<void> {
+  if (scriptLoadPromise) {
+    return scriptLoadPromise;
+  }
+
+  scriptLoadPromise = new Promise((resolve, reject) => {
+    // Check if the script already exists on the document
+    if (typeof document !== 'undefined' && document.querySelector('script[src="/zkp_prover.js"]')) {
+      return resolve();
+    }
+
+    const script = document.createElement('script');
+    script.src = '/zkp_prover.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = (err) => reject(new Error(`Failed to load WASM script: ${err.toString()}`));
+    document.head.appendChild(script);
+  });
+
+  return scriptLoadPromise;
+}
+
 
 /**
  * @notice Defines the function signature for a ZKP generator.
@@ -95,8 +123,8 @@ export class NeuralHandshakeClient implements NeuralClient {
     public static async create(): Promise<NeuralHandshakeClient> {
         // Initialize WASM module if not already initialized
         if (!wasmInitialized) {
-            const wasmBytes = await fetch('/zkp_prover_bg.wasm').then(res => res.arrayBuffer());
-            await (window as any).wasm_bindgen(wasmBytes);
+            await loadWasmScript();
+            await wasm_bindgen('/zkp_prover_bg.wasm');
             wasmInitialized = true;
         }
 
@@ -126,8 +154,7 @@ export class NeuralHandshakeClient implements NeuralClient {
         const encoder = new TextEncoder();
 
         // 2. Generate the Zero-Knowledge Proof using the WASM module.
-        // Assuming wasm_bindgen is globally available
-        const proof = (window as any).wasm_bindgen.generate_zkp(
+        const proof = wasm_bindgen.generate_zkp(
           encoder.encode(signature),
           encoder.encode(challenge)
         );
@@ -140,3 +167,162 @@ export class NeuralHandshakeClient implements NeuralClient {
 }
 
 export * from './recovery.js';
+
+// Re-export necessary types from ethers for convenience
+export {
+    Mnemonic,
+    HDNodeWallet,
+    Wallet,
+    JsonRpcProvider,
+    BrowserProvider,
+    AbstractProvider,
+    FallbackProvider,
+    WebSocketProvider,
+    isError,
+    computeAddress,
+    resolveAddress,
+    getAddress,
+    getIcapAddress,
+    getCreateAddress,
+    getCreate2Address,
+    ZeroAddress,
+    isAddress,
+    isAddressable,
+    isHexString,
+    isBytesLike,
+    isBytes,
+    isBigInt,
+    isCallException,
+    isQuorum,
+    assert,
+    assertArgument,
+    assertPrivate,
+    assertInteger,
+    assertSafeInteger,
+    defineProperties,
+    EventPayload,
+    resolveProperties,
+    getBigInt,
+    getNumber,
+    getBytes,
+    hexlify,
+    toUtf8Bytes,
+    toUtf8String,
+    concat,
+    dataLength,
+    stripZerosLeft,
+    zeroPadValue,
+    zeroPadBytes,
+    encodeBase58,
+    decodeBase58,
+    encodeBase64,
+    decodeBase64,
+    encodeBytes32String,
+    decodeBytes32String,
+    id,
+    keccak256,
+    ripemd160,
+    sha256,
+    sha512,
+    pbkdf2,
+    scrypt,
+    scryptSync,
+    computeHmac,
+    Signature,
+    SigningKey,
+    verifyMessage,
+    verifyTypedData,
+    hashMessage,
+    solidityPacked,
+    solidityPackedKeccak256,
+    solidityPackedSha256,
+    TypedDataEncoder,
+    AbiCoder,
+    ParamType,
+    checkResult,
+    formatEther,
+    parseEther,
+    formatUnits,
+    parseUnits,
+    FetchRequest,
+    FixedNumber,
+    WeiPerEther,
+    MaxUint256,
+    MinInt256,
+    MaxInt256,
+    N,
+    WordSize,
+    randomBytes,
+    shuffled,
+    concatMap,
+    defineReadOnly,
+    getNetwork,
+    isCommunityResource,
+    isPromise,
+    makeError,
+    resolve,
+    Frozen,
+    Observable,
+    Typed,
+    fromTwos,
+    toTwos,
+    mask,
+    getUint,
+    setBit,
+    getBit,
+    toQuantity,
+    toBeHex,
+    toBeArray,
+    decodeRlp,
+    encodeRlp,
+    accessListify,
+    computeAlias,
+    isAccessList,
+    isAccessListish,
+    Transaction,
+    FeeData,
+    Log,
+    Block,
+    TransactionReceipt,
+    TransactionResponse,
+    Contract,
+    ContractFactory,
+    ContractEventPayload,
+    ContractUnknownEventPayload,
+    ContractTransactionResponse,
+    ContractTransactionReceipt,
+    ContractDeployTransaction,
+    copyRequest,
+    populateTransaction,
+    getPlugin,
+    getProvider,
+    getAccount,
+    getRpcError,
+    EthersError,
+    UnknownError,
+    NotImplementedError,
+    MissingArgumentError,
+    InvalidArgumentError,
+    BadArgumentError,
+    BufferOverrunError,
+    NumericFaultError,
+    UnsupportedOperationError,
+    NetworkError,
+    BadDataError,
+    ServerError,
+    TimeoutError,
+    CallExceptionError,
+    InsufficientFundsError,
+    NonceExpiredError,
+    ReplacementUnderpricedError,
+    TransactionReplacedError,
+    ActionRejectedError,
+    UnconfiguredNameError,
+    OffchainFaultError,
+    EnsStaleAuthError,
+    UnsafeDataError,
+    InvalidAddressError,
+    InvalidHexletError,
+    InvalidHexStringError,
+
+} from 'ethers';
