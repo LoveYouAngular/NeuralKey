@@ -13,12 +13,19 @@ const verifyButton = document.getElementById('verifyButton');
 const statusText = document.getElementById('status-text');
 const goToEnrollButton = document.getElementById('goToEnrollButton');
 // --- State ---
-const SIGNATURE_KEY = 'behavioral_signature';
-const DNA_TOLERANCE_MS = 40; // Typing rhythm can be off by this many ms
+const SIGNATURE_KEY = 'behavioral_signature_vector';
+const TOLERANCE = {
+    typingDelay: 40, // ms
+    keyDuration: 25, // ms
+    mouseVelocity: 150 // pixels/sec
+};
 let wasmInitialized = false;
 let scriptLoadPromise = null;
-let enrollTimestamps = [];
-let verifyTimestamps = [];
+// Data collection objects with explicit types
+let enrollMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
+let verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
+let keydownTime = 0;
+let lastMousePoint = { x: 0, y: 0, time: 0 };
 // --- 3D Scene (Omitted for brevity, same as before) ---
 let scene, camera, renderer, particles;
 function init3DBackground() { }
@@ -35,20 +42,23 @@ async function hashString(str) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 /**
- * Calculates the average delay between timestamps in an array.
- * @param timestamps An array of millisecond timestamps.
- * @returns The average delay in milliseconds.
+ * Calculates the average of an array of numbers.
  */
-function calculateTypingDNA(timestamps) {
-    if (timestamps.length < 2) {
+function calculateAverage(arr) {
+    if (arr.length === 0)
         return 0;
-    }
-    const delays = [];
-    for (let i = 1; i < timestamps.length; i++) {
-        delays.push(timestamps[i] - timestamps[i - 1]);
-    }
-    const totalDelay = delays.reduce((sum, delay) => sum + delay, 0);
-    return totalDelay / delays.length;
+    const sum = arr.reduce((a, b) => a + b, 0);
+    return sum / arr.length;
+}
+/**
+ * Calculates the behavioral vector from collected metrics.
+ */
+function calculateBehavioralVector(metrics) {
+    return {
+        typingDelay: calculateAverage(metrics.delays),
+        keyDuration: calculateAverage(metrics.durations),
+        mouseVelocity: calculateAverage(metrics.velocities)
+    };
 }
 function showPage(pageId) {
     allPages.forEach(page => {
@@ -67,17 +77,17 @@ async function handleEnrollment() {
         enrollStatus.textContent = 'Passphrase must be at least 8 characters.';
         return;
     }
-    const dna = calculateTypingDNA(enrollTimestamps);
-    if (dna === 0) {
+    const vector = calculateBehavioralVector(enrollMetrics);
+    if (vector.typingDelay === 0 || vector.keyDuration === 0) {
         enrollStatus.textContent = 'Please type the phrase naturally to capture your rhythm.';
         return;
     }
     enrollStatus.textContent = 'Generating signature hash...';
     const hash = await hashString(passphrase);
-    const signature = { hash, dna };
+    const signature = { hash, vector };
     localStorage.setItem(SIGNATURE_KEY, JSON.stringify(signature));
     enrollStatus.textContent = 'Enrollment Successful!';
-    enrollTimestamps = []; // Clear timestamps after use
+    enrollMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 }; // Reset metrics
     setTimeout(() => {
         showPage('verify-page');
         verifyPassphraseInput.value = '';
@@ -106,21 +116,34 @@ async function performVerification() {
     if (currentHash !== storedSignature.hash) {
         updateVerifyStatus('Recognition Failed: Passphrase is incorrect.');
         verifyButton.disabled = false;
-        verifyTimestamps = []; // Clear timestamps
+        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
         return;
     }
     updateVerifyStatus('Passphrase correct. Verifying behavioral pattern...');
-    const currentDna = calculateTypingDNA(verifyTimestamps);
-    const dnaDifference = Math.abs(currentDna - storedSignature.dna);
-    if (dnaDifference > DNA_TOLERANCE_MS) {
-        updateVerifyStatus(`Recognition Failed: Behavioral pattern anomaly detected. (Delta: ${dnaDifference.toFixed(0)}ms)`);
+    const currentVector = calculateBehavioralVector(verifyMetrics);
+    const delayDiff = Math.abs(currentVector.typingDelay - storedSignature.vector.typingDelay);
+    const durationDiff = Math.abs(currentVector.keyDuration - storedSignature.vector.keyDuration);
+    const velocityDiff = Math.abs(currentVector.mouseVelocity - storedSignature.vector.mouseVelocity);
+    if (delayDiff > TOLERANCE.typingDelay) {
+        updateVerifyStatus(`Recognition Failed: Typing rhythm anomaly. (Delta: ${delayDiff.toFixed(0)}ms)`);
         verifyButton.disabled = false;
-        verifyTimestamps = []; // Clear timestamps
+        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
         return;
     }
-    updateVerifyStatus(`Behavioral pattern matched (Delta: ${dnaDifference.toFixed(0)}ms). Initializing module...`);
+    if (durationDiff > TOLERANCE.keyDuration) {
+        updateVerifyStatus(`Recognition Failed: Key press duration anomaly. (Delta: ${durationDiff.toFixed(0)}ms)`);
+        verifyButton.disabled = false;
+        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
+        return;
+    }
+    if (storedSignature.vector.mouseVelocity > 0 && velocityDiff > TOLERANCE.mouseVelocity) {
+        updateVerifyStatus(`Recognition Failed: Mouse movement anomaly. (Delta: ${velocityDiff.toFixed(0)}px/s)`);
+        verifyButton.disabled = false;
+        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
+        return;
+    }
+    updateVerifyStatus('Behavioral pattern matched. Initializing module...');
     try {
-        // WASM Loading and Proof Generation
         if (!scriptLoadPromise) {
             scriptLoadPromise = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
@@ -148,7 +171,7 @@ async function performVerification() {
     }
     finally {
         verifyButton.disabled = false;
-        verifyTimestamps = []; // Clear timestamps
+        verifyMetrics = { delays: [], durations: [], velocities: [], lastKeyTime: 0 };
     }
 }
 function handleGoToEnroll() {
@@ -157,6 +180,48 @@ function handleGoToEnroll() {
     enrollStatus.textContent = '';
     showPage('enroll-page');
 }
+// --- Event Listeners for Data Collection ---
+const mouseMoveHandler = (e) => {
+    const now = Date.now();
+    if (lastMousePoint.time === 0) {
+        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
+        return;
+    }
+    const timeDelta = now - lastMousePoint.time;
+    if (timeDelta > 20) {
+        const dx = e.clientX - lastMousePoint.x;
+        const dy = e.clientY - lastMousePoint.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const velocity = distance / (timeDelta / 1000);
+        const currentMetrics = enrollPage.style.display === 'block' ? enrollMetrics : verifyMetrics;
+        currentMetrics.velocities.push(velocity);
+        lastMousePoint = { x: e.clientX, y: e.clientY, time: now };
+    }
+};
+const keydownHandler = (e) => {
+    const currentMetrics = e.target === enrollPassphraseInput ? enrollMetrics : verifyMetrics;
+    // Reset metrics on the first keypress of a new attempt
+    if (currentMetrics.durations.length === 0 && currentMetrics.delays.length === 0) {
+        currentMetrics.velocities = [];
+        lastMousePoint = { x: 0, y: 0, time: 0 };
+        document.addEventListener('mousemove', mouseMoveHandler);
+    }
+    keydownTime = Date.now();
+};
+const keyupHandler = (e) => {
+    const currentMetrics = e.target === enrollPassphraseInput ? enrollMetrics : verifyMetrics;
+    if (keydownTime !== 0) {
+        const now = Date.now();
+        const duration = now - keydownTime;
+        currentMetrics.durations.push(duration);
+        if (currentMetrics.lastKeyTime !== 0) {
+            const delay = now - currentMetrics.lastKeyTime;
+            currentMetrics.delays.push(delay);
+        }
+        currentMetrics.lastKeyTime = now;
+    }
+    keydownTime = 0;
+};
 // --- Entry Point ---
 document.addEventListener('DOMContentLoaded', () => {
     // Full 3D background code included here
@@ -190,15 +255,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     animate();
     // Attach event listeners
-    enrollButton.addEventListener('click', handleEnrollment);
-    verifyButton.addEventListener('click', performVerification);
+    enrollButton.addEventListener('click', () => {
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        handleEnrollment();
+    });
+    verifyButton.addEventListener('click', () => {
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        performVerification();
+    });
     goToVerifyButton.addEventListener('click', () => showPage('verify-page'));
     goToEnrollButton.addEventListener('click', handleGoToEnroll);
-    // Listen for typing to clear timestamp arrays and record new ones
-    enrollPassphraseInput.addEventListener('keydown', () => { enrollTimestamps = []; });
-    enrollPassphraseInput.addEventListener('keyup', () => { enrollTimestamps.push(Date.now()); });
-    verifyPassphraseInput.addEventListener('keydown', () => { verifyTimestamps = []; });
-    verifyPassphraseInput.addEventListener('keyup', () => { verifyTimestamps.push(Date.now()); });
+    enrollPassphraseInput.addEventListener('keydown', keydownHandler);
+    enrollPassphraseInput.addEventListener('keyup', keyupHandler);
+    verifyPassphraseInput.addEventListener('keydown', keydownHandler);
+    verifyPassphraseInput.addEventListener('keyup', keyupHandler);
     // Initial page load logic
     if (localStorage.getItem(SIGNATURE_KEY)) {
         showPage('verify-page');
